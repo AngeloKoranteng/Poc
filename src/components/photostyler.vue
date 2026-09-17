@@ -566,11 +566,8 @@ onBeforeUnmount(() => {
     <!-- Titel en vaste acties. -->
     <header class="bovenbalk">
       <div class="merk">
-        <span
-          class="merk-icoon"
-          aria-hidden="true"
-          >d.</span
-        ><span>Dappre <strong>toolkit</strong></span>
+        <span>Dappre <br>toolkit
+        </span>
       </div>
       <div class="ontwerpnaam">
         <span class="bovenlabel">CLUBSTUDIO</span>
@@ -797,6 +794,7 @@ onBeforeUnmount(() => {
               <span>Kwast</span><span class="schakelaar">{{ tekenModus ? "Aan" : "Uit" }}</span>
             </button>
             <h3>Kleur</h3>
+            
             <div class="kleurkeuze">
               <label for="kwastkleur">Kwastkleur</label>
               <input
@@ -984,7 +982,7 @@ onBeforeUnmount(() => {
   background: #f2f4f3;
 }
 .editor {
-  color: #253b35;
+  color: #ADD8E6;
   font-family: "Segoe UI", Arial, sans-serif;
   font-size: 14px;
 }
@@ -1014,7 +1012,7 @@ button {
 }
 button:hover:not(:disabled) {
   background: #edf4ef;
-  border-color: #a5bbae;
+  border-color: #ADD8E6;
 }
 button:disabled,
 fieldset:disabled {
@@ -1026,7 +1024,7 @@ button:disabled {
 button:focus-visible,
 input:focus-visible,
 .uploadveld:focus-within {
-  outline: 3px solid #63a17d;
+  outline: 3px solid #ADD8E6;
   outline-offset: 3px;
 }
 svg {
@@ -1046,7 +1044,7 @@ svg {
   gap: 30px;
   min-height: 84px;
   padding: 16px 28px;
-  background: #183d32;
+  background: black;
   color: white;
 }
 .merk {
@@ -1060,17 +1058,7 @@ svg {
   font-weight: 400;
   color: #bdd5c7;
 }
-.merk-icoon {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: #d4edb9;
-  color: #183d32;
-  font-size: 30px;
-  font-weight: 800;
-}
+
 .ontwerpnaam {
   min-width: 0;
   border-left: 1px solid #ffffff30;
@@ -1109,7 +1097,7 @@ h1 {
   background: #ffffff15;
 }
 .download {
-  background: #d4edb9;
+  background: #ADD8E6;
   color: #183d32;
   border-color: #d4edb9;
   font-weight: 650;
@@ -1146,7 +1134,7 @@ h1 {
 }
 .gereedschappen button.actief {
   color: #234d39;
-  background: #eaf2e4;
+  background: #ADD8E6;
 }
 .railvoet {
   margin-top: auto;
