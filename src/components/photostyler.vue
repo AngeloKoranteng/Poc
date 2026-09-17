@@ -12,6 +12,15 @@ const canvasKlaar = ref(false);
 const rood = ref(0);
 const groen = ref(0);
 const blauw = ref(0);
+const actiefPaneel = ref("uploads");
+
+const panelen = [
+  { id: "uploads", label: "Uploads" },
+  { id: "afbeelding", naam: "Afbeelding" },
+  { id: "tekenen", naam: "Tekenen" },
+  {id: "achtergrond", naam: "Afbeelding"},
+];
+
 
 //Fotoselectie en kleurtint
 const fotoGeselecteerd = ref(false);
@@ -504,7 +513,18 @@ onBeforeUnmount(() => {
           @change="uploadFoto"
       />
     </label>
-
+<nav class="gereedschappen" aria-label="Editorgereedschappen">
+  <button
+  v-for="paneel in panelen"
+  :key="paneel.id"
+  :type="button"
+  :class="{actief: actiePaneel === paneel.id}"
+  :aria-pressed="actiefPaneel === paneel.id"
+  @click="actiefPaneel = paneel.id"
+  >
+    {{ paneel.naam }}
+  </button>
+</nav>
     <p v-if="fileName">{{ fileName }}</p>
     <p v-if="foutmelding" role="alert">{{ foutmelding }}</p>
     <div class="achtergrondkleur">
@@ -545,7 +565,6 @@ onBeforeUnmount(() => {
         <output>{{ kwastGrootte }} px</output>
       </label>
     </div>
-    <p v-if="tekenModus">Sleep met je muis, pen of vinger om te verven. De verf blijft op het canvas staan wanneer je de foto verplaatst.</p>
     <div class="canvas-host" :class="{ 'kwast-actief': tekenModus }">
       <div ref="canvasHost"></div>
       <canvas ref="verfCanvas" class="verflaag" width="800" height="500"
@@ -748,6 +767,28 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.gereedschappen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.gereedschappen button {
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  background: white;
+  color: #333;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gereedschappen button.actief {
+  border-color: #1f3a2c;
+  background: #1f3a2c;
 }
 
 </style>
