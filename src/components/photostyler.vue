@@ -15,10 +15,10 @@ const blauw = ref(0);
 const actiefPaneel = ref("uploads");
 
 const panelen = [
-  { id: "uploads", label: "Uploads" },
+  { id: "uploads", naam: "Uploads" },
   { id: "afbeelding", naam: "Afbeelding" },
   { id: "tekenen", naam: "Tekenen" },
-  {id: "achtergrond", naam: "Afbeelding"},
+  { id: "achtergrond", naam: "Achtergrond" },
 ];
 
 
@@ -502,140 +502,51 @@ onBeforeUnmount(() => {
 <template>
   <section class="styler">
     <h1>Foto-editor</h1>
-    <p>Upload je foto, sleep hem over het canvas en zoom in of uit.</p>
 
-    <label class="upload">
-      Kies een foto
-      <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
-          :disabled="!canvasKlaar"
-          @change="uploadFoto"
-      />
-    </label>
-<nav class="gereedschappen" aria-label="Editorgereedschappen">
-  <button
-  v-for="paneel in panelen"
-  :key="paneel.id"
-  :type="button"
-  :class="{actief: actiePaneel === paneel.id}"
-  :aria-pressed="actiefPaneel === paneel.id"
-  @click="actiefPaneel = paneel.id"
-  >
-    {{ paneel.naam }}
-  </button>
-</nav>
+    <nav class="gereedschappen" aria-label="Editorgereedschappen">
+      <button
+        v-for="paneel in panelen"
+        :key="paneel.id"
+        type="button"
+        :class="{ actief: actiefPaneel === paneel.id }"
+        :aria-pressed="actiefPaneel === paneel.id"
+        @click="actiefPaneel = paneel.id"
+      >
+        {{ paneel.naam }}
+      </button>
+    </nav>
+
+    <!-- Nieuwe instellingen komen hier. -->
+
     <p v-if="fileName">{{ fileName }}</p>
     <p v-if="foutmelding" role="alert">{{ foutmelding }}</p>
-    <div class="achtergrondkleur">
-      <label>
-        Rood
-        <input class="slider-rood" type="range" min="0" max="255" v-model.number="rood" @pointerdown="startKleurWijziging" @keydown="startKleurWijziging" @change="stopKleurWijziging" @blur="stopKleurWijziging" />
-        <output>{{ rood }}</output>
-      </label>
 
-      <label>
-        Groen
-        <input class="slider-groen" type="range" min="0" max="255" v-model.number="groen" @pointerdown="startKleurWijziging" @keydown="startKleurWijziging" @change="stopKleurWijziging" @blur="stopKleurWijziging" />
-        <output>{{ groen }}</output>
-      </label>
-
-      <label>
-        Blauw
-        <input class="slider-blauw" type="range" min="0" max="255" v-model.number="blauw" @pointerdown="startKleurWijziging" @keydown="startKleurWijziging" @change="stopKleurWijziging" @blur="stopKleurWijziging" />
-        <output>{{ blauw }}</output>
-      </label>
-    </div>
-
-
-    <div class="knoppen tekengereedschap">
-      <button type="button" class="kwast-knop" :class="{ actief: tekenModus }"
-              :aria-pressed="tekenModus" :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'"
-              :disabled="!canvasKlaar || !fileName" @click="wisselKwast">
-        <img src="/kwast.svg" alt="" width="28" height="28" />
-        {{ tekenModus ? "Kwast aan" : "Kwast uit" }}
-      </button>
-      <label>
-        Kwastkleur
-        <input type="color" v-model="kwastKleur" />
-      </label>
-      <label>
-        Kwastgrootte
-        <input type="range" min="1" max="80" v-model.number="kwastGrootte" />
-        <output>{{ kwastGrootte }} px</output>
-      </label>
-    </div>
     <div class="canvas-host" :class="{ 'kwast-actief': tekenModus }">
       <div ref="canvasHost"></div>
-      <canvas ref="verfCanvas" class="verflaag" width="800" height="500"
-              aria-label="Verflaag: teken met de kwast op de afbeelding"
-              @pointerdown="startTekenen" @pointermove="tijdensTekenen"
-              @pointerup="stopTekenen" @pointercancel="stopTekenen"
-              @lostpointercapture="stopTekenen" />
+      <canvas
+        ref="verfCanvas"
+        class="verflaag"
+        width="800"
+        height="500"
+        aria-label="Verflaag: teken met de kwast op de afbeelding"
+        @pointerdown="startTekenen"
+        @pointermove="tijdensTekenen"
+        @pointerup="stopTekenen"
+        @pointercancel="stopTekenen"
+        @lostpointercapture="stopTekenen"
+      />
     </div>
-    <div v-if="fotoGeselecteerd">
-      <h2>Fototint</h2>
 
-      <div class="achtergrondkleur">
-        <label>
-          Rood
-          <input
-              type="range"
-              min="0"
-              max="255"
-              v-model.number="fotoRood"
-              @pointerdown="startKleurWijziging"
-              @keydown="startKleurWijziging"
-              @change="stopKleurWijziging"
-              @blur="stopKleurWijziging"/>
-          <output>{{ fotoRood }}</output>
-        </label>
-        <label>
-          Groen
-          <input
-              type="range"
-              min="0"
-              max="255"
-              v-model.number="fotoGroen"
-              @pointerdown="startKleurWijziging"
-              @keydown="startKleurWijziging"
-              @change="stopKleurWijziging"
-              @blur="stopKleurWijziging"/>
-          <output>{{ fotoGroen }}</output>
-        </label>
-
-        <label>
-          Blauw
-          <input
-              type="range"
-              min="0"
-              max="255"
-              v-model.number="fotoBlauw"
-              @pointerdown="startKleurWijziging"
-              @keydown="startKleurWijziging"
-              @change="stopKleurWijziging"
-              @blur="stopKleurWijziging"
-          />
-          <output>{{ fotoBlauw }}</output>
-        </label>
-      </div>
-
-      <button @click="fotoGeselecteerd = false">
-        Selectie sluiten
-      </button>
-    </div>
     <div class="knoppen">
-      <button @click="veranderSchaal(0.9)">− Kleiner</button>
-      <button @click="veranderSchaal(1.1)">+ Groter</button>
-      <button @click="draaiFoto(-15)">Link draaien</button>
-      <button @click="draaiFoto(15)">Rechts draaien</button>
-      <button @click="ongedaanMaken" :disabled="geschiedenis.length === 0">Ongedaan Maken</button>
-      <button @click="verwijderFoto" :disabled="!fileName" aria-label="Foto verwijderen" title="Foto verwijderen">🗑️️</button>
-      <button class="download" :disabled="!fileName" @click="downloadFoto">Download</button>
+      <button type="button" @click="ongedaanMaken" :disabled="geschiedenis.length === 0">
+        Ongedaan maken
+      </button>
+      <button type="button" class="download" :disabled="!fileName" @click="downloadFoto">
+        Download
+      </button>
     </div>
   </section>
 </template>
-
 
 <style scoped>
 .styler {
@@ -645,23 +556,47 @@ onBeforeUnmount(() => {
   font-family: Arial, sans-serif;
 }
 
-.upload,
+.gereedschappen,
+.knoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.gereedschappen {
+  margin-bottom: 1.5rem;
+}
+
+.knoppen {
+  margin-top: 1rem;
+}
+
+.gereedschappen button,
 .knoppen button {
   padding: 0.75rem 1rem;
-  border: 0;
+  border: 1px solid #ddd;
   border-radius: 0.5rem;
-  cursor: pointer;
+  background: white;
+  color: #333;
   font: inherit;
+  cursor: pointer;
 }
 
-.upload {
-  display: inline-block;
-  color: white;
+.gereedschappen button.actief,
+.knoppen .download {
+  border-color: #1f3a2c;
   background: #1f3a2c;
+  color: white;
 }
 
-.upload input {
-  display: none;
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button:focus-visible {
+  outline: 3px solid #387c60;
+  outline-offset: 3px;
 }
 
 .canvas-host {
@@ -680,70 +615,7 @@ onBeforeUnmount(() => {
   touch-action: none;
 }
 
-.achtergrondkleur {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.achtergrondkleur label{
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.achtergrondkleur input{
-  width: 10rem;
-  padding: 0.5rem;
-}
-.knoppen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.slider-rood {
-  accent-color: v-bind(roodAccent);
-}
-.slider-groen {
-  accent-color: v-bind(groenAccent);
-}
-.slider-blauw {
-  accent-color: v-bind(blauwAccent);
-}
-
-.knoppen button {
-  background: #ece7df;
-}
-
-.knoppen .download {
-  color: white;
-  background: #1f3a2c;
-}
-
-.knoppen button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.kwast-knop{
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  border: 2px solid #ccc;
-  border-radius: 0.5rem;
-  background: white;
-  cursor: pointer;
-}
-
-.knoppen .kwast-knop.actief{
-  border-color: #1f3a2c;
-  background: #dcefe2;
-}
-
-.canvas-host.kwast-actief :deep(canvas){
+.canvas-host.kwast-actief :deep(canvas) {
   cursor: url("/kwast.svg") 3 29, crosshair !important;
 }
 
@@ -757,38 +629,4 @@ onBeforeUnmount(() => {
 .kwast-actief .verflaag {
   pointer-events: auto;
 }
-
-.tekengereedschap {
-  align-items: center;
-}
-
-.tekengereedschap label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.gereedschappen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.gereedschappen button {
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
-  background: white;
-  color: #333;
-  font: inherit;
-  cursor: pointer;
-}
-
-.gereedschappen button.actief {
-  border-color: #1f3a2c;
-  background: #1f3a2c;
-}
-
 </style>
