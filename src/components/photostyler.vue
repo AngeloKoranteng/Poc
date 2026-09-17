@@ -19,6 +19,11 @@ const fotoRood = ref(255);
 const fotoGroen = ref(255);
 const fotoBlauw = ref(255);
 
+//Tekengereedschap
+const tekenmodus = ref(false);
+const kwastKleur = ref("#ff0000");
+const kwastGrootte = ref(12);
+
 // Kleuren van de sliders
 const roodAccent = computed(() => `rgb(${rood.value}, 0, 0)`);
 const groenAccent = computed(() => `rgb(0, ${groen.value}, 0)`);
@@ -79,7 +84,11 @@ function stopKleurWijziging(){
   }
   kleurBegin = null;
 }
-
+const tekenModus = ref(false);
+function wisselKwast(){
+  stopSlepen();
+  tekenModus.value = !tekenModus.value;
+}
 
 // Laatste wijziging terugdraaien
 function ongedaanMaken() {
@@ -195,8 +204,8 @@ async function uploadFoto(event) {
     fotoSprite.position.set(app.screen.width / 2, app.screen.height / 2);
 
     const schaal = Math.min(
-      (app.screen.width * 0.8) / fotoSprite.width,
-      (app.screen.height * 0.8) / fotoSprite.height,
+        (app.screen.width * 0.8) / fotoSprite.width,
+        (app.screen.height * 0.8) / fotoSprite.height,
     );
 
     fotoSprite.scale.set(schaal);
@@ -215,7 +224,7 @@ async function uploadFoto(event) {
   } catch {
     if (!unmounted && huidigeUpload === uploadId) {
       foutmelding.value =
-        "Deze foto kan niet worden geopend. Probeer een JPG-, PNG- of WebP-bestand.";
+          "Deze foto kan niet worden geopend. Probeer een JPG-, PNG-, WebP- of SVG-bestand.";
     }
   } finally {
     URL.revokeObjectURL(objectUrl);
@@ -224,7 +233,7 @@ async function uploadFoto(event) {
 
 // Slepen starten
 function startSlepen(event) {
-  if (!fotoSprite) return;
+  if (!fotoSprite || tekenModus.value) return;
   fotoGeselecteerd.value = true;
 
   sleepBegin = huidigeToestand();
@@ -242,8 +251,8 @@ function tijdensSlepen(event) {
   if (!slepen || !fotoSprite) return;
 
   fotoSprite.position.set(
-    event.global.x - verschil.x,
-    event.global.y - verschil.y,
+      event.global.x - verschil.x,
+      event.global.y - verschil.y,
   );
   app.render();
 }
@@ -284,8 +293,8 @@ function veranderSchaal(factor) {
   bewaarToestand();
 
   fotoSprite.scale.set(
-    fotoSprite.scale.x * factor,
-    fotoSprite.scale.y * factor,
+      fotoSprite.scale.x * factor,
+      fotoSprite.scale.y * factor,
   );
   app.render();
 }
@@ -388,21 +397,21 @@ onBeforeUnmount(() => {
     <label class="upload">
       Kies een foto
       <input
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        :disabled="!canvasKlaar"
-        @change="uploadFoto"
+          type="file"
+          accept="image/jpeg,image/png,image/webpsvg+xml,.svg"
+          :disabled="!canvasKlaar"
+          @change="uploadFoto"
       />
     </label>
 
     <p v-if="fileName">{{ fileName }}</p>
     <p v-if="foutmelding" role="alert">{{ foutmelding }}</p>
     <div class="achtergrondkleur">
-   <label>
-     Rood
-     <input class="slider-rood" type="range" min="0" max="255" v-model.number="rood" @pointerdown="startKleurWijziging" @keydown="startKleurWijziging" @change="stopKleurWijziging" @blur="stopKleurWijziging" />
-     <output>{{ rood }}</output>
-   </label>
+      <label>
+        Rood
+        <input class="slider-rood" type="range" min="0" max="255" v-model.number="rood" @pointerdown="startKleurWijziging" @keydown="startKleurWijziging" @change="stopKleurWijziging" @blur="stopKleurWijziging" />
+        <output>{{ rood }}</output>
+      </label>
 
       <label>
         Groen
@@ -416,7 +425,9 @@ onBeforeUnmount(() => {
         <output>{{ blauw }}</output>
       </label>
     </div>
-    <div ref="canvasHost" class="canvas-host"></div>
+
+
+    <div ref="canvasHost" class="canvas-host" :class="{ 'kwast-actief' : tekenModus }"></div>
     <div v-if="fotoGeselecteerd">
       <h2>Fototint</h2>
 
@@ -469,6 +480,8 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div class="knoppen">
+      <button type="button" class="kwast-knop" :class="{ actief: tekenModus }" :aria-pressed="tekenModus" :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'" disabled="!canvasKlaar" @click="wisselKwast"/>
+      <img src="/kwast.svg"  alt="Kwast"  width="28" height="28"/>
       <button @click="veranderSchaal(0.9)">− Kleiner</button>
       <button @click="veranderSchaal(1.1)">+ Groter</button>
       <button @click="draaiFoto(-15)">Link draaien</button>
@@ -479,6 +492,7 @@ onBeforeUnmount(() => {
     </div>
   </section>
 </template>
+
 
 <style scoped>
 .styler {
@@ -568,4 +582,23 @@ onBeforeUnmount(() => {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.kwast-knop{
+  display: inline-flex;
+  padding: 0.5rem;
+  border: 2px solid #ccc;
+  border-radius: 0.5rem;
+  background: white;
+  cursor: pointer;
+}
+
+.kwast-knop.actief{
+  border-color: #1f3a2c;
+  background: #dcefe2;
+}
+
+.canvas-host.kwast-actief :deep(canvas){
+  cursor: url("/kwast.svg") 3 29, crosshair !important;
+}
+
 </style>
