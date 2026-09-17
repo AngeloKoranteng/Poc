@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch, computed } from "vue";
-import { Application, Sprite, Texture } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Texture } from "pixi.js";
 
 // Verwijzingen naar het canvas, de verflaag en het uploadveld.
 const canvasHost = ref(null);
@@ -83,6 +83,14 @@ let kleurBegin = null;
 // Pixi-editor en de afbeelding op het canvas.
 let app;
 let fotoSprite;
+let selectielaag;
+let selectieKader;
+let resizeHandles = [];
+
+let resizen = false;
+let resizeBegin = null;
+let reisizeStartAfstand = 0;
+let resizeStartSchaal = 1;
 
 // Voorkomt dat een verouderde upload na het laden wordt getoond.
 let uploadId = 0;
@@ -105,6 +113,42 @@ function kiesPaneel(paneel) {
   if (paneel !== "tekenen") tekenModus.value = false;
   actiefPaneel.value = paneel;
 }
+
+//Draghandles
+function maakSelectieHandles() {
+  let selectieLaag;
+  selectieLaag = new Container();
+  selectieKader = new Graphics();
+
+  selectieLaag.addChild(selectieKader);
+
+  const posities = ["linksBoven", "rechtsBoven", "rechtsOnder", "linksOnder"];
+
+  for (const positie of posities) {
+    const handle = new Graphics()
+        .circle(0, 0, 7)
+        .fill("#ffffff")
+        .stroke({ width: 2, color: "#234d39" });
+
+    handle.eventMode = "static";
+    handle.cursor =
+        positie === "linksBoven" || positie === "rechtsOnder"
+            ? "nwse-resize"
+            : "nesw-resize";
+
+    handle.on("pointerdown", (event) => startResize(event));
+
+    resizeHandles.push({
+      positie,
+      graphic: handle,
+    });
+
+    selectieLaag.addChild(handle);
+  }
+
+  app.stage.addChild(selectieLaag);
+}
+
 
 // Schakelt de kwast in of uit.
 function wisselKwast() {
@@ -671,15 +715,7 @@ onBeforeUnmount(() => {
           >
             <span class="statusstip"></span><span>{{ fileName }}</span>
           </div>
-          <p class="tip">
-            Tip: een PNG of SVG met een transparante achtergrond past mooi op je clubkleur.
-          </p>
-          <p
-            v-if="fileName"
-            class="kleine-tekst"
-          >
-            Een nieuwe afbeelding vervangt je huidige afbeelding en verfstreken.
-          </p>
+
         </section>
 
         <!-- Formaat, rotatie en fototint. -->
@@ -794,7 +830,7 @@ onBeforeUnmount(() => {
               <span>Kwast</span><span class="schakelaar">{{ tekenModus ? "Aan" : "Uit" }}</span>
             </button>
             <h3>Kleur</h3>
-            
+
             <div class="kleurkeuze">
               <label for="kwastkleur">Kwastkleur</label>
               <input
