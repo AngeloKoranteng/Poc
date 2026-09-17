@@ -516,7 +516,22 @@ onBeforeUnmount(() => {
       </button>
     </nav>
 
-    <!-- Nieuwe instellingen komen hier. -->
+   <div class="instellingen">
+     <section v-show="actiefPaneel === 'uploads'" class="paneel">
+       <h2>Uploads</h2>
+       <p> Upload je logo </p>
+<label class="uploadveld">
+Afbeelding Kiezen
+  <input
+    type="file"
+    accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
+    :disabled="!canvasKlaar"
+    @change="uploadLogo"
+  />
+</label>
+       </section>
+   </div>
+
 
     <p v-if="fileName">{{ fileName }}</p>
     <p v-if="foutmelding" role="alert">{{ foutmelding }}</p>
@@ -554,6 +569,37 @@ onBeforeUnmount(() => {
   margin: 3rem auto;
   padding: 2rem;
   font-family: Arial, sans-serif;
+}
+
+.instellingen{
+  margin-bottom: 1.5rem;
+}
+
+.paneel{
+  padding: 1.5rem;
+  border: 1px solid #e2e8e5;
+  border-radius: 0.75rem;
+  background: #f7faf8;
+}
+
+.paneel h2{
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.paneel p{
+  color: #526259;
+}
+
+.uploadveld{
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.uploadveld input{
+  max-width: 100%;
+  font: inherit;
 }
 
 .gereedschappen,
