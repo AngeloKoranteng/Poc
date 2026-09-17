@@ -516,22 +516,21 @@ onBeforeUnmount(() => {
       </button>
     </nav>
 
-   <div class="instellingen">
-     <section v-show="actiefPaneel === 'uploads'" class="paneel">
-       <h2>Uploads</h2>
-       <p> Upload je logo </p>
-<label class="uploadveld">
-Afbeelding Kiezen
-  <input
-    type="file"
-    accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
-    :disabled="!canvasKlaar"
-    @change="uploadLogo"
-  />
-</label>
-       </section>
-   </div>
-
+    <div class="instellingen">
+      <section v-show="actiefPaneel === 'uploads'" class="paneel">
+        <h2>Uploads</h2>
+        <p>Upload je clublogo of afbeelding.</p>
+        <label class="uploadveld">
+          Afbeelding kiezen
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
+            :disabled="!canvasKlaar"
+            @change="uploadFoto"
+          />
+        </label>
+      </section>
+    </div>
 
     <p v-if="fileName">{{ fileName }}</p>
     <p v-if="foutmelding" role="alert">{{ foutmelding }}</p>
