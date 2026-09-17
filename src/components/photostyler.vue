@@ -20,9 +20,13 @@ const fotoGroen = ref(255);
 const fotoBlauw = ref(255);
 
 //Tekengereedschap
-const tekenmodus = ref(false);
+const tekenModus = ref(false);
 const kwastKleur = ref("#ff0000");
 const kwastGrootte = ref(12);
+const verfCanvas = ref(null);
+let verfstreken = [];
+let actieveStreek = null;
+let tekenPointer = null;
 
 // Kleuren van de sliders
 const roodAccent = computed(() => `rgb(${rood.value}, 0, 0)`);
@@ -56,6 +60,7 @@ function huidigeToestand() {
     fotoRood: fotoRood.value,
     fotoGroen: fotoGroen.value,
     fotoBlauw: fotoBlauw.value,
+    aantalVerfstreken: verfstreken.length,
   };
 }
 
@@ -84,10 +89,91 @@ function stopKleurWijziging(){
   }
   kleurBegin = null;
 }
-const tekenModus = ref(false);
 function wisselKwast(){
   stopSlepen();
+  stopTekenen();
+  stopKleurWijziging();
   tekenModus.value = !tekenModus.value;
+}
+
+// De verflaag gebruikt dezelfde 800 x 500 coördinaten als de PNG-export.
+function tekenPunt(event) {
+  const rechthoek = verfCanvas.value.getBoundingClientRect();
+  return {
+    x: (event.clientX - rechthoek.left) * verfCanvas.value.width / rechthoek.width,
+    y: (event.clientY - rechthoek.top) * verfCanvas.value.height / rechthoek.height,
+  };
+}
+
+function verfSegment(streek, van, naar = van) {
+  const context = verfCanvas.value.getContext("2d");
+  context.fillStyle = streek.kleur;
+  context.strokeStyle = streek.kleur;
+  context.lineWidth = streek.grootte;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.beginPath();
+  if (van.x === naar.x && van.y === naar.y) {
+    context.arc(van.x, van.y, streek.grootte / 2, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    context.moveTo(van.x, van.y);
+    context.lineTo(naar.x, naar.y);
+    context.stroke();
+  }
+}
+
+function startTekenen(event) {
+  if (!tekenModus.value || !canvasKlaar.value || !fotoSprite ||
+      tekenPointer !== null || !event.isPrimary || event.button !== 0) return;
+
+  event.preventDefault();
+  stopSlepen();
+  stopKleurWijziging();
+  bewaarToestand();
+  tekenPointer = event.pointerId;
+  verfCanvas.value.setPointerCapture(tekenPointer);
+  actieveStreek = {
+    kleur: kwastKleur.value,
+    grootte: Math.max(1, Math.min(80, Number(kwastGrootte.value) || 1)),
+    punten: [tekenPunt(event)],
+  };
+  verfstreken.push(actieveStreek);
+  verfSegment(actieveStreek, actieveStreek.punten[0]);
+}
+
+function tijdensTekenen(event) {
+  if (!actieveStreek || event.pointerId !== tekenPointer) return;
+  event.preventDefault();
+  const punt = tekenPunt(event);
+  const vorigPunt = actieveStreek.punten[actieveStreek.punten.length - 1];
+  if (punt.x === vorigPunt.x && punt.y === vorigPunt.y) return;
+  actieveStreek.punten.push(punt);
+  verfSegment(actieveStreek, vorigPunt, punt);
+}
+
+function stopTekenen(event) {
+  if (tekenPointer === null || (event && event.pointerId !== tekenPointer)) return;
+  if (event?.type === "pointerup") tijdensTekenen(event);
+  const pointer = tekenPointer;
+  tekenPointer = null;
+  actieveStreek = null;
+  if (verfCanvas.value?.hasPointerCapture(pointer)) {
+    verfCanvas.value.releasePointerCapture(pointer);
+  }
+}
+
+function herstelVerflaag(aantal = 0) {
+  stopTekenen();
+  verfstreken.length = aantal;
+  const canvas = verfCanvas.value;
+  canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+  for (const streek of verfstreken) {
+    verfSegment(streek, streek.punten[0]);
+    for (let index = 1; index < streek.punten.length; index++) {
+      verfSegment(streek, streek.punten[index - 1], streek.punten[index]);
+    }
+  }
 }
 
 // Laatste wijziging terugdraaien
@@ -95,6 +181,8 @@ function ongedaanMaken() {
   if (!canvasKlaar.value || geschiedenis.value.length === 0) return;
 
   stopSlepen();
+  stopTekenen();
+  stopKleurWijziging();
 
   const vorige = geschiedenis.value.pop();
   if (!vorige) return;
@@ -102,6 +190,7 @@ function ongedaanMaken() {
   bezigMetHerstellen = true;
 
   try {
+    herstelVerflaag(vorige.aantalVerfstreken);
     if (fotoSprite && vorige.schaal !== null) {
       fotoSprite.position.set(vorige.x, vorige.y);
       fotoSprite.scale.set(vorige.schaal);
@@ -193,6 +282,12 @@ async function uploadFoto(event) {
     const texture = Texture.from(afbeelding);
 
     stopSlepen();
+    herstelVerflaag();
+    kleurBegin = null;
+    fotoGeselecteerd.value = false;
+    fotoRood.value = 255;
+    fotoGroen.value = 255;
+    fotoBlauw.value = 255;
     if (fotoSprite) {
       app.stage.removeChild(fotoSprite);
       fotoSprite.destroy({ texture: true, textureSource: true });
@@ -304,6 +399,9 @@ function verwijderFoto() {
   if (!fotoSprite || !canvasKlaar.value) return;
 
   stopSlepen();
+  herstelVerflaag();
+  tekenModus.value = false;
+  kleurBegin = null;
   uploadId++;
 
   app.stage.removeChild(fotoSprite);
@@ -322,7 +420,7 @@ function verwijderFoto() {
 
 // Zoomen met het muiswiel
 function zoomMetMuis(event) {
-  if (!fotoSprite) return;
+  if (!fotoSprite || tekenModus.value) return;
 
   event.preventDefault();
   veranderSchaal(event.deltaY < 0 ? 1.1 : 0.9);
@@ -353,12 +451,14 @@ watch(
 function downloadFoto() {
   if (!canvasKlaar.value || !fotoSprite) return;
 
+  stopTekenen();
   const canvas = app.renderer.extract.canvas({
     target: app.stage,
     frame: app.screen.clone(),
     resolution: 1,
     clearColor: achtergrondKleur(),
   });
+  canvas.getContext("2d").drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
   const link = document.createElement("a");
 
   link.download = "mijn-bewerkte-foto.png";
@@ -381,6 +481,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unmounted = true;
   uploadId++;
+  stopTekenen();
 
   if (canvasKlaar.value) {
     app.canvas.removeEventListener("wheel", zoomMetMuis);
@@ -398,7 +499,7 @@ onBeforeUnmount(() => {
       Kies een foto
       <input
           type="file"
-          accept="image/jpeg,image/png,image/webpsvg+xml,.svg"
+          accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
           :disabled="!canvasKlaar"
           @change="uploadFoto"
       />
@@ -427,7 +528,32 @@ onBeforeUnmount(() => {
     </div>
 
 
-    <div ref="canvasHost" class="canvas-host" :class="{ 'kwast-actief' : tekenModus }"></div>
+    <div class="knoppen tekengereedschap">
+      <button type="button" class="kwast-knop" :class="{ actief: tekenModus }"
+              :aria-pressed="tekenModus" :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'"
+              :disabled="!canvasKlaar || !fileName" @click="wisselKwast">
+        <img src="/kwast.svg" alt="" width="28" height="28" />
+        {{ tekenModus ? "Kwast aan" : "Kwast uit" }}
+      </button>
+      <label>
+        Kwastkleur
+        <input type="color" v-model="kwastKleur" />
+      </label>
+      <label>
+        Kwastgrootte
+        <input type="range" min="1" max="80" v-model.number="kwastGrootte" />
+        <output>{{ kwastGrootte }} px</output>
+      </label>
+    </div>
+    <p v-if="tekenModus">Sleep met je muis, pen of vinger om te verven. De verf blijft op het canvas staan wanneer je de foto verplaatst.</p>
+    <div class="canvas-host" :class="{ 'kwast-actief': tekenModus }">
+      <div ref="canvasHost"></div>
+      <canvas ref="verfCanvas" class="verflaag" width="800" height="500"
+              aria-label="Verflaag: teken met de kwast op de afbeelding"
+              @pointerdown="startTekenen" @pointermove="tijdensTekenen"
+              @pointerup="stopTekenen" @pointercancel="stopTekenen"
+              @lostpointercapture="stopTekenen" />
+    </div>
     <div v-if="fotoGeselecteerd">
       <h2>Fototint</h2>
 
@@ -480,8 +606,6 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div class="knoppen">
-      <button type="button" class="kwast-knop" :class="{ actief: tekenModus }" :aria-pressed="tekenModus" :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'" disabled="!canvasKlaar" @click="wisselKwast"/>
-      <img src="/kwast.svg"  alt="Kwast"  width="28" height="28"/>
       <button @click="veranderSchaal(0.9)">− Kleiner</button>
       <button @click="veranderSchaal(1.1)">+ Groter</button>
       <button @click="draaiFoto(-15)">Link draaien</button>
@@ -522,6 +646,7 @@ onBeforeUnmount(() => {
 }
 
 .canvas-host {
+  position: relative;
   width: 100%;
   margin-top: 1.5rem;
   overflow: hidden;
@@ -585,6 +710,8 @@ onBeforeUnmount(() => {
 
 .kwast-knop{
   display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem;
   border: 2px solid #ccc;
   border-radius: 0.5rem;
@@ -592,13 +719,35 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.kwast-knop.actief{
+.knoppen .kwast-knop.actief{
   border-color: #1f3a2c;
   background: #dcefe2;
 }
 
 .canvas-host.kwast-actief :deep(canvas){
   cursor: url("/kwast.svg") 3 29, crosshair !important;
+}
+
+.verflaag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.kwast-actief .verflaag {
+  pointer-events: auto;
+}
+
+.tekengereedschap {
+  align-items: center;
+}
+
+.tekengereedschap label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 </style>
