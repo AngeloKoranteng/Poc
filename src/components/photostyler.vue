@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch, computed } from "vue";
-import { Application, Graphics, Sprite, Texture } from "pixi.js";
+import { Application, Graphics, Sprite, Texture, Rectangle } from "pixi.js";
 
 // Verwijzingen naar het canvas, de verflaag en het uploadveld.
 const canvasHost = ref(null);
@@ -84,13 +84,16 @@ let kleurBegin = null;
 let app;
 let fotoSprite;
 let fotoKader;
-let selectieKader;
-let resizeHandles = [];
 
-let resizen = false;
-let resizeBegin = null;
-let reisizeStartAfstand = 0;
-let resizeStartSchaal = 1;
+// Hoekblokjes en de actieve schaalbewerking.
+let hoekBlokjes = [];
+let resizeActie = null;
+const hoekRichtingen = [
+  { x: -1, y: -1 },
+  { x: 1, y: -1 },
+  { x: 1, y: 1 },
+  { x: -1, y: 1 },
+];
 
 // Voorkomt dat een verouderde upload na het laden wordt getoond.
 let uploadId = 0;
@@ -107,6 +110,7 @@ let tekenPointer = null;
 
 // Opent een paneel en stopt de actieve bewerking.
 function kiesPaneel(paneel) {
+  stopResize();
   stopSlepen();
   stopTekenen();
   stopKleurWijziging();
@@ -114,44 +118,9 @@ function kiesPaneel(paneel) {
   actiefPaneel.value = paneel;
 }
 
-//Draghandles
-function maakSelectieHandles() {
-  let selectieLaag;
-  selectieLaag = new Container();
-  selectieKader = new Graphics();
-
-  selectieLaag.addChild(selectieKader);
-
-  const posities = ["linksBoven", "rechtsBoven", "rechtsOnder", "linksOnder"];
-
-  for (const positie of posities) {
-    const handle = new Graphics()
-        .circle(0, 0, 7)
-        .fill("#ffffff")
-        .stroke({ width: 2, color: "#234d39" });
-
-    handle.eventMode = "static";
-    handle.cursor =
-        positie === "linksBoven" || positie === "rechtsOnder"
-            ? "nwse-resize"
-            : "nesw-resize";
-
-    handle.on("pointerdown", (event) => startResize(event));
-
-    resizeHandles.push({
-      positie,
-      graphic: handle,
-    });
-
-    selectieLaag.addChild(handle);
-  }
-
-  app.stage.addChild(selectieLaag);
-}
-
-
 // Schakelt de kwast in of uit.
 function wisselKwast() {
+  stopResize();
   stopSlepen();
   stopTekenen();
   stopKleurWijziging();
@@ -204,6 +173,7 @@ function bewaarToestand(toestand = huidigeToestand()) {
 
 // Onthoudt de toestand voordat een kleurslider verandert.
 function startKleurWijziging() {
+  stopResize();
   if (!canvasKlaar.value || kleurBegin) return;
 
   kleurBegin = huidigeToestand();
@@ -225,6 +195,7 @@ function stopKleurWijziging() {
 
 // Herstelt de vorige afbeelding, kleuren en verflaag.
 function ongedaanMaken() {
+  stopResize();
   if (!canvasKlaar.value || geschiedenis.value.length === 0) return;
 
   stopSlepen();
@@ -257,59 +228,143 @@ function ongedaanMaken() {
     }
 
     app.renderer.background.color = achtergrondKleur();
-    app.render();
+    renderCanvas();
   } finally {
     bezigMetHerstellen = false;
   }
 }
 
-//Tekent een kader met vier hoekblokken
-function werkFotoKaderBij(){
-  if (!fotoKader) return;
+// Maakt afzonderlijke hoekblokjes met een ruimer klikgebied.
+function maakHoekBlokjes() {
+  hoekBlokjes = hoekRichtingen.map((richting) => {
+    const blokje = new Graphics()
+      .rect(-5, -5, 10, 10)
+      .fill({ color: 0xffffff })
+      .stroke({ width: 2, color: 0x3b82f6 });
 
-  fotoKader.clear();
-  fotoKader.visible = Boolean(fotoSprite) && !tekenModus.value;
-
-  if(!fotoKader.visible) return;
-
-  // Het kader volgt de positie en de draaihoek van de foto
-  fotoKader.position.copyFrom(fotoSprite.position);
-  fotoKader.rotation = fotoSprite.rotation;
-
-  //Omlijning van de foto
-  fotoKader
-  .rect(links, boven, breedte, hoogte)
-  .stroke({ width: 2, color: kaderKleur });
-
-  vonsthoeken = [
-    { x: links, y: boven },
-    { x: links + breedte, y: boven },
-    { x: links + breedte, y: boven + hoogte },
-    { x: links, y: boven + hoogte },
-  ];
-
-  //Een wit blokje om iedere hoek
-  for(const hoek of hoeken){
-    fotoKader.rect(
-        hoek.x - blokGrootte / 2,
-        hoek.y - blokGrootte / 2,
-        blokGrootte,
-        blokGrootte,
-    )
-        .fill({ color: 0xffffff })
-        .stroke({ width: 2, color: kaderKleur })
-
-  }
+    blokje.eventMode = "static";
+    blokje.hitArea = new Rectangle(-12, -12, 24, 24);
+    blokje.on("pointerdown", (event) => startResize(event, richting));
+    fotoKader.addChild(blokje);
+    return blokje;
+  });
 }
 
-// Werkt het kader bij
-function renderCanvas(){
-  if (!app || !canvasKlaar.value) return;
+// Laat het kader en de hoekblokjes de foto volgen.
+function werkFotoKaderBij() {
+  if (!fotoKader) return;
+  fotoKader.clear();
+  fotoKader.visible = Boolean(fotoSprite) && !tekenModus.value;
+  if (!fotoKader.visible) return;
 
-  werktFotoKaderBij();
+  fotoKader.position.copyFrom(fotoSprite.position);
+  fotoKader.rotation = fotoSprite.rotation;
+  const breedte = fotoSprite.width;
+  const hoogte = fotoSprite.height;
+  fotoKader
+    .rect(-breedte / 2, -hoogte / 2, breedte, hoogte)
+    .stroke({ width: 2, color: 0x3b82f6 });
+
+  const cursors = ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"];
+  hoekBlokjes.forEach((blokje, index) => {
+    const richting = hoekRichtingen[index];
+    blokje.position.set(richting.x * breedte / 2, richting.y * hoogte / 2);
+    const hoek = Math.atan2(richting.y * hoogte, richting.x * breedte) + fotoSprite.rotation;
+    const cursorIndex = ((Math.round(hoek / (Math.PI / 4)) % 4) + 4) % 4;
+    blokje.cursor = cursors[cursorIndex];
+  });
+}
+
+// Werkt het kader bij voordat het canvas opnieuw wordt getekend.
+function renderCanvas() {
+  if (!app || !canvasKlaar.value) return;
+  werkFotoKaderBij();
   app.render();
 }
 
+// Zet browserco?rdinaten om naar het formaat van het Pixi-canvas.
+function resizePunt(event) {
+  const rechthoek = app.canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rechthoek.left) / rechthoek.width) * app.screen.width,
+    y: ((event.clientY - rechthoek.top) / rechthoek.height) * app.screen.height,
+  };
+}
+
+// Bewaart de beginpositie en de tegenoverliggende, vaste hoek.
+function startResize(event, richting) {
+  if (!fotoSprite || tekenModus.value || resizeActie || event.button !== 0) return;
+  event.stopPropagation();
+  event.preventDefault();
+  stopSlepen();
+  stopKleurWijziging();
+  actiefPaneel.value = "afbeelding";
+
+  const breedte = fotoSprite.width;
+  const hoogte = fotoSprite.height;
+  if (breedte <= 0 || hoogte <= 0) return;
+  const lokaalX = richting.x * breedte;
+  const lokaalY = richting.y * hoogte;
+  const cos = Math.cos(fotoSprite.rotation);
+  const sin = Math.sin(fotoSprite.rotation);
+  const diagonaalX = lokaalX * cos - lokaalY * sin;
+  const diagonaalY = lokaalX * sin + lokaalY * cos;
+
+  resizeActie = {
+    pointerId: event.pointerId,
+    begin: huidigeToestand(),
+    muisX: event.global.x,
+    muisY: event.global.y,
+    diagonaalX,
+    diagonaalY,
+    vastX: fotoSprite.x - diagonaalX / 2,
+    vastY: fotoSprite.y - diagonaalY / 2,
+    minimumFactor: Math.min(1, 20 / Math.max(breedte, hoogte)),
+  };
+  app.canvas.setPointerCapture(event.pointerId);
+}
+
+// Schaalt beide assen gelijk en houdt de tegenoverliggende hoek vast.
+function tijdensResize(event) {
+  const actie = resizeActie;
+  if (!actie || !fotoSprite || event.pointerId !== actie.pointerId) return;
+  event.preventDefault();
+  const punt = resizePunt(event);
+  const verplaatsingX = punt.x - actie.muisX;
+  const verplaatsingY = punt.y - actie.muisY;
+  const lengteKwadraat = actie.diagonaalX ** 2 + actie.diagonaalY ** 2;
+  const factor = Math.max(
+    actie.minimumFactor,
+    1 + (verplaatsingX * actie.diagonaalX + verplaatsingY * actie.diagonaalY) / lengteKwadraat,
+  );
+
+  fotoSprite.scale.set(actie.begin.schaal * factor);
+  fotoSprite.position.set(
+    actie.vastX + actie.diagonaalX * factor / 2,
+    actie.vastY + actie.diagonaalY * factor / 2,
+  );
+  renderCanvas();
+}
+
+// Bewaart een volledige sleepbeweging als ??n stap voor Ongedaan maken.
+function stopResize(event) {
+  const actie = resizeActie;
+  if (!actie) return;
+  if (event?.pointerId !== undefined && event.pointerId !== actie.pointerId) return;
+  if (event?.type === "pointerup") tijdensResize(event);
+  resizeActie = null;
+
+  if (
+    fotoSprite &&
+    (fotoSprite.scale.x !== actie.begin.schaal ||
+      fotoSprite.x !== actie.begin.x || fotoSprite.y !== actie.begin.y)
+  ) {
+    bewaarToestand(actie.begin);
+  }
+  if (app.canvas.hasPointerCapture(actie.pointerId)) {
+    app.canvas.releasePointerCapture(actie.pointerId);
+  }
+}
 
 // Start Pixi en voegt het canvas toe aan de pagina.
 async function maakCanvas() {
@@ -333,9 +388,15 @@ async function maakCanvas() {
   canvasHost.value.appendChild(app.canvas);
 
   fotoKader = new Graphics();
-  fotoKader.eventMode = "none";
+  fotoKader.eventMode = "passive";
   app.stage.addChild(fotoKader);
   app.canvas.addEventListener("wheel", zoomMetMuis, { passive: false });
+  maakHoekBlokjes();
+  window.addEventListener("pointermove", tijdensResize, { passive: false });
+  window.addEventListener("pointerup", stopResize);
+  window.addEventListener("pointercancel", stopResize);
+  window.addEventListener("blur", stopResize);
+  app.canvas.addEventListener("lostpointercapture", stopResize);
   canvasKlaar.value = true;
 }
 
@@ -358,6 +419,8 @@ async function uploadFoto(event) {
     if (unmounted || huidigeUpload !== uploadId) return;
 
     const texture = Texture.from(afbeelding);
+
+    stopResize();
 
     stopSlepen();
     herstelVerflaag();
@@ -394,7 +457,7 @@ async function uploadFoto(event) {
     kiesPaneel("afbeelding");
     geschiedenis.value = [];
     sleepBegin = null;
-    app.render();
+    renderCanvas();
   } catch {
     if (!unmounted && huidigeUpload === uploadId) {
       foutmelding.value =
@@ -407,6 +470,7 @@ async function uploadFoto(event) {
 
 // Verwijdert de afbeelding, verfstreken en bewerkingsgeschiedenis.
 function verwijderFoto() {
+  stopResize();
   if (!fotoSprite || !canvasKlaar.value) return;
 
   stopSlepen();
@@ -425,12 +489,12 @@ function verwijderFoto() {
   geschiedenis.value = [];
   sleepBegin = null;
 
-  app.render();
+  renderCanvas();
 }
 
 // Start het verplaatsen van de afbeelding.
 function startSlepen(event) {
-  if (!fotoSprite || tekenModus.value) return;
+  if (!fotoSprite || tekenModus.value || resizeActie || event.button !== 0) return;
   actiefPaneel.value = "afbeelding";
 
   sleepBegin = huidigeToestand();
@@ -448,7 +512,7 @@ function tijdensSlepen(event) {
   if (!slepen || !fotoSprite) return;
 
   fotoSprite.position.set(event.global.x - verschil.x, event.global.y - verschil.y);
-  app.render();
+  renderCanvas();
 }
 
 // Stopt het slepen en bewaart de vorige positie.
@@ -471,23 +535,25 @@ function stopSlepen() {
 
 // Draait de afbeelding met het opgegeven aantal graden.
 function draaiFoto(graden) {
+  stopResize();
   if (!fotoSprite || !canvasKlaar.value) return;
 
   stopSlepen();
   bewaarToestand();
 
   fotoSprite.angle += graden;
-  app.render();
+  renderCanvas();
 }
 
 // Vergroot of verkleint de afbeelding.
 function veranderSchaal(factor) {
+  stopResize();
   if (!fotoSprite) return;
 
   bewaarToestand();
 
   fotoSprite.scale.set(fotoSprite.scale.x * factor, fotoSprite.scale.y * factor);
-  app.render();
+  renderCanvas();
 }
 
 // Past de afbeeldingsgrootte aan met het muiswiel.
@@ -495,6 +561,7 @@ function zoomMetMuis(event) {
   if (!fotoSprite || tekenModus.value) return;
 
   event.preventDefault();
+  if (resizeActie) return;
   veranderSchaal(event.deltaY < 0 ? 1.1 : 0.9);
 }
 
@@ -592,23 +659,38 @@ function herstelVerflaag(aantal = 0) {
 
 // Combineert achtergrond, afbeelding en verf tot een PNG-download.
 function downloadFoto() {
+  stopResize();
   if (!canvasKlaar.value || !fotoSprite) return;
 
   stopTekenen();
-  const canvas = app.renderer.extract.canvas({
-    target: app.stage,
-    frame: app.screen.clone(),
-    resolution: 1,
-    clearColor: achtergrondKleur(),
-  });
-  canvas.getContext("2d").drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
-  const link = document.createElement("a");
+  const kaderWasZichtbaar = fotoKader.visible;
 
-  link.download = "mijn-bewerkte-foto.png";
-  link.href = canvas.toDataURL("image/png");
+  try {
+    fotoKader.visible = false;
 
-  link.click();
+    const canvas = app.renderer.extract.canvas({
+      target: app.stage,
+      frame: app.screen.clone(),
+      resolution: 1,
+      clearColor: achtergrondKleur(),
+    });
+    canvas.getContext("2d").drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
+    const link = document.createElement("a");
+
+    link.download = "mijn-bewerkte-foto.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  } finally {
+    fotoKader.visible = kaderWasZichtbaar;
+    renderCanvas();
+  }
 }
+
+// Verbergt het kader tijdens tekenen en toont het daarna opnieuw.
+watch(tekenModus, () => {
+  stopResize();
+  renderCanvas();
+});
 
 // Past de fototint direct toe wanneer de kleurwaarden veranderen.
 watch(
@@ -617,7 +699,7 @@ watch(
     if (!fotoSprite || bezigMetHerstellen) return;
 
     fotoSprite.tint = fotoTint();
-    app.render();
+    renderCanvas();
   },
   { flush: "sync" },
 );
@@ -629,7 +711,7 @@ watch(
     if (!canvasKlaar.value || bezigMetHerstellen) return;
 
     app.renderer.background.color = achtergrondKleur();
-    app.render();
+    renderCanvas();
   },
   { flush: "sync" },
 );
@@ -646,12 +728,18 @@ onMounted(async () => {
 
 // Ruimt het canvas, de afbeelding en de muiswielkoppeling op.
 onBeforeUnmount(() => {
+  stopResize();
   unmounted = true;
+  window.removeEventListener("pointermove", tijdensResize);
+  window.removeEventListener("pointerup", stopResize);
+  window.removeEventListener("pointercancel", stopResize);
+  window.removeEventListener("blur", stopResize);
   uploadId++;
   stopTekenen();
 
   if (canvasKlaar.value) {
     app.canvas.removeEventListener("wheel", zoomMetMuis);
+    app.canvas.removeEventListener("lostpointercapture", stopResize);
     app.destroy(true, { children: true, texture: true, textureSource: true });
   }
 });
@@ -1049,7 +1137,7 @@ onBeforeUnmount(() => {
               {{
                 tekenModus
                   ? "Sleep om te tekenen · Kies links je kleur en kwastgrootte"
-                  : "Sleep je afbeelding om te verplaatsen · Scroll om de afbeelding te schalen"
+                  : "Sleep je afbeelding om te verplaatsen · Sleep aan een hoekblokje of scroll om te schalen"
               }}
             </p>
           </div>
