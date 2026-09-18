@@ -1,6 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch, computed } from "vue";
-import { Application, Container, Graphics, Sprite, Texture } from "pixi.js";
+import { Application, Graphics, Sprite, Texture } from "pixi.js";
 
 // Verwijzingen naar het canvas, de verflaag en het uploadveld.
 const canvasHost = ref(null);
@@ -83,7 +83,7 @@ let kleurBegin = null;
 // Pixi-editor en de afbeelding op het canvas.
 let app;
 let fotoSprite;
-let selectielaag;
+let fotoKader;
 let selectieKader;
 let resizeHandles = [];
 
@@ -263,6 +263,54 @@ function ongedaanMaken() {
   }
 }
 
+//Tekent een kader met vier hoekblokken
+function werkFotoKaderBij(){
+  if (!fotoKader) return;
+
+  fotoKader.clear();
+  fotoKader.visible = Boolean(fotoSprite) && !tekenModus.value;
+
+  if(!fotoKader.visible) return;
+
+  // Het kader volgt de positie en de draaihoek van de foto
+  fotoKader.position.copyFrom(fotoSprite.position);
+  fotoKader.rotation = fotoSprite.rotation;
+
+  //Omlijning van de foto
+  fotoKader
+  .rect(links, boven, breedte, hoogte)
+  .stroke({ width: 2, color: kaderKleur });
+
+  vonsthoeken = [
+    { x: links, y: boven },
+    { x: links + breedte, y: boven },
+    { x: links + breedte, y: boven + hoogte },
+    { x: links, y: boven + hoogte },
+  ];
+
+  //Een wit blokje om iedere hoek
+  for(const hoek of hoeken){
+    fotoKader.rect(
+        hoek.x - blokGrootte / 2,
+        hoek.y - blokGrootte / 2,
+        blokGrootte,
+        blokGrootte,
+    )
+        .fill({ color: 0xffffff })
+        .stroke({ width: 2, color: kaderKleur })
+
+  }
+}
+
+// Werkt het kader bij
+function renderCanvas(){
+  if (!app || !canvasKlaar.value) return;
+
+  werktFotoKaderBij();
+  app.render();
+}
+
+
 // Start Pixi en voegt het canvas toe aan de pagina.
 async function maakCanvas() {
   app = new Application();
@@ -284,6 +332,9 @@ async function maakCanvas() {
 
   canvasHost.value.appendChild(app.canvas);
 
+  fotoKader = new Graphics();
+  fotoKader.eventMode = "none";
+  app.stage.addChild(fotoKader);
   app.canvas.addEventListener("wheel", zoomMetMuis, { passive: false });
   canvasKlaar.value = true;
 }
@@ -339,6 +390,7 @@ async function uploadFoto(event) {
     fotoSprite.on("pointerupoutside", stopSlepen);
 
     app.stage.addChild(fotoSprite);
+    app.stage.addChild(fotoKader);
     kiesPaneel("afbeelding");
     geschiedenis.value = [];
     sleepBegin = null;
