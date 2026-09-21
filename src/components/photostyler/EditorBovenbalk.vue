@@ -1,7 +1,7 @@
 <script setup>
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
-const { fileName, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerContext();
+const { lagen, fileName, achtergrondBestandsnaam, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -34,7 +34,7 @@ const { fileName, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerCo
         class="download"
         type="button"
         @click="downloadFoto"
-        :disabled="!fileName"
+        :disabled="!fileName && !achtergrondBestandsnaam && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
       >
         <svg
           viewBox="0 0 24 24"

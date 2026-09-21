@@ -2,7 +2,7 @@
 import TekstInstellingen from "./TekstInstellingen.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
-const { actiefPaneel, fileName } = usePhotoStylerContext();
+const { actiefPaneel, canvasKlaar } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -11,10 +11,10 @@ const { actiefPaneel, fileName } = usePhotoStylerContext();
     <span class="bovenlabel">GEEF JE ONTWERP EEN BOODSCHAP</span>
     <h2>Tekst</h2>
     <p>Voeg tekst toe en kies de kleur, grootte en positie.</p>
-    <p v-if="!fileName" class="tip">
-      Upload eerst een afbeelding om tekst aan je ontwerp toe te voegen.
+    <p v-if="!canvasKlaar" class="tip">
+      Het canvas wordt geladen.
     </p>
-    <fieldset :disabled="!fileName">
+    <fieldset :disabled="!canvasKlaar">
       <legend class="sr-only">Tekstinstellingen</legend>
       <TekstInstellingen />
     </fieldset>

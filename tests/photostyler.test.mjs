@@ -74,6 +74,12 @@ class DisplayObject extends EventTarget {
     child.parent = this;
     return child;
   }
+  addChildAt(child, index) {
+    child.parent?.removeChild(child);
+    this.children.splice(index, 0, child);
+    child.parent = this;
+    return child;
+  }
   removeChild(child) {
     this.children = this.children.filter((item) => item !== child);
     child.parent = null;
@@ -388,7 +394,7 @@ test("cancel, blur, lost capture and panel changes all release inspector locks",
   }
 });
 
-test("download includes text without handles, and replacing the photo clears text", async () => {
+test("download includes text without handles, and replacing the photo preserves text", async () => {
   const h = await setup();
   try {
     h.editor.downloadFoto();
@@ -397,8 +403,10 @@ test("download includes text without handles, and replacing the photo clears tex
     await h.editor.uploadFoto({
       target: { files: [{ name: "nieuw.png" }], value: "" },
     });
-    assert.ok(!h.app.stage.children.includes(h.text));
-    assert.equal(h.editor.tekstFormulier.value.inhoud, "");
+    assert.ok(h.app.stage.children.includes(h.text));
+    assert.equal(h.editor.tekstFormulier.value.inhoud, "Onze club");
+    const logo = h.app.stage.children.find(child => child instanceof Sprite);
+    assert.ok(h.app.stage.children.indexOf(h.text) > h.app.stage.children.indexOf(logo));
     assert.equal(h.editor.geschiedenis.value.length, 0);
     h.editor.tekstFormulier.value.inhoud = "Opnieuw";
     h.editor.pasTekstToe();
@@ -406,4 +414,201 @@ test("download includes text without handles, and replacing the photo clears tex
   } finally {
     h.close();
   }
+});
+
+
+test("logo presets fit rotated logos within margins and undo their transformation", async () => {
+  const h = await setup();
+  try {
+    h.photo.angle = 45;
+    h.photo.scale.set(3);
+    const before = { x: h.photo.x, y: h.photo.y, scale: h.photo.scale.x };
+    h.editor.plaatsLogo("rechtsonder");
+    const extent = (h.photo.width + h.photo.height) / Math.sqrt(2);
+    near(h.photo.x + extent / 2, 768);
+    near(h.photo.y + extent / 2, 468);
+    assert.ok(h.photo.y - extent / 2 >= 32 - 1e-6);
+    near(h.photo.angle, 45);
+    h.editor.ongedaanMaken();
+    near(h.photo.x, before.x);
+    near(h.photo.y, before.y);
+    near(h.photo.scale.x, before.scale);
+    h.editor.plaatsLogo("midden");
+    near(h.photo.x, 400);
+    near(h.photo.y, 250);
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.plaatsLogo("midden");
+    assert.equal(h.editor.geschiedenis.value.length, count);
+  } finally { h.close(); }
+});
+
+test("background darkness affects only the background and supports undo and replacement", async () => {
+  const h = await setup();
+  try {
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: "bg.png" }], value: "" } });
+    const bg = h.app.stage.children[0];
+    const photoTint = h.photo.tint;
+    h.editor.startKleurWijziging();
+    h.editor.achtergrondDonkerte.value = 50;
+    h.editor.stopKleurWijziging();
+    assert.equal(bg.tint, 0x808080);
+    assert.equal(h.photo.tint, photoTint);
+    h.editor.ongedaanMaken();
+    assert.equal(bg.tint, 0xffffff);
+    assert.equal(h.editor.achtergrondDonkerte.value, 0);
+    h.editor.achtergrondDonkerte.value = 100;
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: "next.png" }], value: "" } });
+    assert.equal(h.app.stage.children[0].tint, 0);
+    assert.ok(h.app.stage.children.includes(h.text));
+  } finally { h.close(); }
+});
+
+test("layers select objects and hidden layers stay out of exports until undo", async () => {
+  const h = await setup();
+  try {
+    assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, true);
+    assert.equal(h.editor.lagen.value.find(l => l.id === 'achtergrond').aanwezig, false);
+    h.editor.selecteerLaag('afbeelding');
+    assert.equal(h.editor.geselecteerdeLaag.value, 'afbeelding');
+    h.editor.wisselLaagZichtbaarheid('afbeelding');
+    assert.equal(h.photo.visible, false);
+    assert.equal(h.frame.visible, false);
+    h.editor.downloadFoto();
+    assert.ok(!h.app.exported.includes(h.photo));
+    assert.ok(h.app.exported.includes(h.text));
+    h.editor.ongedaanMaken();
+    assert.equal(h.photo.visible, true);
+    assert.equal(h.frame.visible, true);
+    h.editor.selecteerLaag('tekst');
+    assert.equal(h.editor.actiefPaneel.value, 'tekst');
+    h.editor.verwijderTekst();
+    assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, false);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, true);
+  } finally { h.close(); }
+});
+
+test("locked layers reject drag, resize, rotation and logo positioning and can be unlocked", async () => {
+  const h = await setup();
+  try {
+    for (const [id, object] of [['afbeelding', h.photo], ['tekst', h.text]]) {
+      h.editor.selecteerLaag(id);
+      const before = { x: object.x, scale: object.scale.x, angle: object.angle };
+      h.editor.wisselLaagVergrendeling(id);
+      assert.equal(h.frame.visible, false);
+      object.emit('pointerdown', h.pointer(object.x, object.y));
+      h.window.emit('pointerup', h.pointer(700, 400));
+      h.editor.veranderSchaal(2);
+      h.editor.draaiFoto(45);
+      if (id === 'afbeelding') h.editor.plaatsLogo('linksboven');
+      near(object.x, before.x);
+      near(object.scale.x, before.scale);
+      near(object.angle, before.angle);
+      assert.equal(h.editor.inspectorsVergrendeld.value, false);
+      h.editor.ongedaanMaken();
+      assert.equal(object.eventMode, 'static');
+      assert.equal(h.frame.visible, true);
+    }
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    const bg = h.app.stage.children[0];
+    h.editor.selecteerLaag('achtergrond');
+    assert.equal(h.editor.actiefPaneel.value, 'afbeelding');
+    assert.equal(h.editor.geselecteerdeLaag.value, 'achtergrond');
+    h.editor.wisselLaagVergrendeling('achtergrond');
+    bg.emit('pointerdown', h.pointer(400, 250));
+    assert.equal(h.editor.inspectorsVergrendeld.value, false);
+    assert.equal(bg.eventMode, 'none');
+    h.editor.wisselLaagVergrendeling('achtergrond');
+    bg.emit('pointerdown', h.pointer(400, 250));
+    assert.equal(h.editor.inspectorsVergrendeld.value, true);
+    h.window.emit('pointerup', h.pointer(450, 250));
+    assert.equal(h.editor.inspectorsVergrendeld.value, false);
+  } finally { h.close(); }
+});
+
+test("reuploading a deleted hidden and locked image creates a visible editable layer", async () => {
+  const h = await setup();
+  try {
+    for (const id of ['afbeelding', 'achtergrond']) {
+      const upload = id === 'afbeelding' ? h.editor.uploadFoto : h.editor.uploadAchtergrond;
+      if (id === 'achtergrond') await upload({ target: { files: [{ name: 'old.png' }], value: '' } });
+      const old = id === 'afbeelding' ? h.photo : h.app.stage.children[0];
+      h.editor.wisselLaagZichtbaarheid(id);
+      h.editor.wisselLaagVergrendeling(id);
+      h.editor.verwijderLaag(id);
+      assert.equal(old.destroyed, true);
+      assert.ok(!h.app.stage.children.includes(old));
+      assert.equal(h.editor.lagen.value.find(l => l.id === id).aanwezig, false);
+      await upload({ target: { files: [{ name: 'new.png' }], value: '' } });
+      const layer = h.editor.lagen.value.find(l => l.id === id);
+      assert.equal(layer.aanwezig, true);
+      assert.equal(layer.zichtbaar, true);
+      assert.equal(layer.vergrendeld, false);
+      const fresh = id === 'afbeelding'
+        ? h.app.stage.children.find(o => o instanceof Sprite)
+        : h.app.stage.children[0];
+      assert.notEqual(fresh, old);
+      assert.equal(fresh.visible, true);
+      assert.equal(fresh.eventMode, 'static');
+      assert.equal(id === 'afbeelding' ? h.editor.fileName.value : h.editor.achtergrondBestandsnaam.value, 'new.png');
+    }
+  } finally { h.close(); }
+});
+
+test("canvas typing saves multiple lines as one undo step and preserves transforms", async () => {
+  const h = await setup();
+  try {
+    h.text.position.set(320, 210);
+    h.text.scale.set(1.2, 0.8);
+    h.text.angle = 15;
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.startCanvasTekst();
+    assert.equal(h.editor.canvasTekstActief.value, true);
+    assert.equal(h.text.visible, false);
+    h.editor.canvasTekstInvoer.value = 'Eerste regel\nTweede regel';
+    h.editor.stopCanvasTekst();
+    assert.equal(h.text.text, 'Eerste regel\nTweede regel');
+    assert.equal(h.text.visible, true);
+    near(h.text.x, 320);
+    near(h.text.scale.x, 1.2);
+    near(h.text.angle, 15);
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.ongedaanMaken();
+    assert.equal(h.text.text, 'Onze club');
+  } finally { h.close(); }
+});
+
+test("cancel and unchanged canvas text do not create history; clearing text can be undone", async () => {
+  const h = await setup();
+  try {
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.startCanvasTekst();
+    h.editor.canvasTekstInvoer.value = 'Annuleren';
+    h.editor.stopCanvasTekst(false);
+    assert.equal(h.text.text, 'Onze club');
+    assert.equal(h.text.visible, true);
+    assert.equal(h.editor.geschiedenis.value.length, count);
+    h.editor.startCanvasTekst();
+    h.editor.stopCanvasTekst();
+    assert.equal(h.editor.geschiedenis.value.length, count);
+    h.editor.startCanvasTekst();
+    h.editor.canvasTekstInvoer.value = '';
+    h.editor.stopCanvasTekst();
+    assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, false);
+    h.editor.ongedaanMaken();
+    assert.ok(h.app.stage.children.some(o => o instanceof Text && o.text === 'Onze club'));
+  } finally { h.close(); }
+});
+
+test("canvas typing creates text without an image and export commits the draft", async () => {
+  const h = await setup();
+  try {
+    h.editor.verwijderLaag('tekst');
+    h.editor.verwijderLaag('afbeelding');
+    h.editor.startCanvasTekst();
+    h.editor.canvasTekstInvoer.value = 'Alleen tekst\nOp het canvas';
+    h.editor.downloadFoto();
+    assert.equal(h.editor.canvasTekstActief.value, false);
+    assert.ok(h.app.exported.some(o => o instanceof Text && o.text === 'Alleen tekst\nOp het canvas'));
+  } finally { h.close(); }
 });

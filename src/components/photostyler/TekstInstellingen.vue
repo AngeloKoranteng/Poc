@@ -1,12 +1,13 @@
 <script setup>
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
-const { tekstFormulier, pasTekstToe, verwijderTekst } = usePhotoStylerContext();
+const { startCanvasTekst, tekstFormulier, pasTekstToe, verwijderTekst } = usePhotoStylerContext();
 </script>
 
 <template>
   <!-- Tekst, opmaak en positie op het ontwerp. -->
   <div class="tekstinstellingen">
+    <button type="button" @click="startCanvasTekst">Typ op het canvas</button>
 
     <label class="tekstveld">
       <span>Jouw tekst</span>

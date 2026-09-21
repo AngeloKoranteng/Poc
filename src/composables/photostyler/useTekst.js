@@ -22,6 +22,42 @@ export function useTekst({
 
   // Houdt invoer apart van de tekst die daadwerkelijk is toegepast.
   const tekstFormulier = ref({ ...standaardTekst });
+  const canvasTekstActief = ref(false);
+  const canvasTekstInvoer = ref("");
+  const canvasTekstOpmaak = ref({ ...standaardTekst });
+  let formulierVoorCanvas = null;
+
+  function startCanvasTekst() {
+    if (!kanBewerken() || canvasTekstActief.value) return;
+    voorBewerking();
+    formulierVoorCanvas = { ...tekstFormulier.value };
+    const tekst = huidigeTekst() ?? {
+      ...tekstFormulier.value,
+      grootte: begrens(tekstFormulier.value.grootte, 8, 160, 36),
+    };
+    canvasTekstOpmaak.value = { ...tekst };
+    canvasTekstInvoer.value = tekst.inhoud;
+    canvasTekstActief.value = true;
+    renderCanvas();
+  }
+
+  function stopCanvasTekst(opslaan = true) {
+    if (!canvasTekstActief.value) return;
+    canvasTekstActief.value = false;
+    if (opslaan) {
+      tekstFormulier.value = {
+        ...canvasTekstOpmaak.value,
+        inhoud: canvasTekstInvoer.value,
+      };
+      if (canvasTekstInvoer.value.trim()) pasTekstToe();
+      else verwijderTekst();
+    } else {
+      tekstFormulier.value = { ...formulierVoorCanvas };
+    }
+    formulierVoorCanvas = null;
+    renderCanvas();
+  }
+
   let toegepasteTekst = null;
   let tekstObject = null;
 
@@ -157,6 +193,11 @@ export function useTekst({
   }
 
   return {
+    canvasTekstActief,
+    canvasTekstInvoer,
+    canvasTekstOpmaak,
+    startCanvasTekst,
+    stopCanvasTekst,
     tekstFormulier,
     pasTekstToe,
     verwijderTekst,

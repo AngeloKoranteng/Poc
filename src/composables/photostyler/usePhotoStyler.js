@@ -12,6 +12,13 @@ export function usePhotoStyler() {
   const verfCanvas = ref(null);
   const bestandInput = ref(null);
 
+
+  const achtergrondBestandsnaam = ref("");
+  const achtergrondDonkerte = ref(0);
+  let achtergrondSprite = null;
+  let achtergrondUploadId = 0;
+
+
   // Bestandsnaam, meldingen en het geopende instellingenpaneel.
   const fileName = ref("");
   const foutmelding = ref("");
@@ -37,9 +44,141 @@ export function usePhotoStyler() {
   let fotoKader;
   // Bepaalt welk object met de grepen wordt bewerkt.
   let geselecteerdType = "afbeelding";
+  const lagen = ref([
+    {
+      id: "tekst",
+      naam: "Tekst",
+      aanwezig: false,
+      zichtbaar: true,
+      vergrendeld: false,
+    },
+    {
+      id: "afbeelding",
+      naam: "Logo",
+      aanwezig: false,
+      zichtbaar: true,
+      vergrendeld: false,
+    },
+    {
+      id: "achtergrond",
+      naam: "Achtergrond",
+      aanwezig: false,
+      zichtbaar: true,
+      vergrendeld: false,
+    },
+  ]);
+
+  const geselecteerdeLaag = ref(geselecteerdType);
+
+  function getLaagObject(id) {
+    if (id === "tekst") return getTekstObject();
+    if (id === "afbeelding") return fotoSprite;
+    if (id === "achtergrond") return achtergrondSprite;
+    return null;
+  }
+
+  // Een nieuwe upload moet direct zichtbaar en bewerkbaar zijn.
+  function resetUploadLaag(id) {
+    const laag = lagen.value.find((laag) => laag.id === id);
+    if (!laag) return;
+    laag.zichtbaar = true;
+    laag.vergrendeld = false;
+  }
+
+  function magLaagVerplaatsen(id) {
+    const laag = lagen.value.find((laag) => laag.id === id);
+
+    return Boolean(
+        laag &&
+        laag.zichtbaar &&
+        !laag.vergrendeld
+    );
+  }
+
+// Werkt de lijst en de zichtbaarheid op het canvas bij.
+  function synchroniseerLagen() {
+    geselecteerdeLaag.value = geselecteerdType;
+
+    for (const laag of lagen.value) {
+      const object = getLaagObject(laag.id);
+
+      laag.aanwezig = Boolean(object);
+
+      if (!object) continue;
+
+      object.visible = laag.zichtbaar && !(laag.id === "tekst" && canvasTekstActief.value);
+      object.eventMode =
+          object.visible && !laag.vergrendeld ? "static" : "none";
+    }
+  }
+
+  function selecteerLaag(id) {
+    if (!getLaagObject(id)) return;
+
+    stopResize();
+    stopSlepen();
+    stopTekenen();
+    stopKleurWijziging();
+
+    tekenModus.value = false;
+    geselecteerdType = id;
+    actiefPaneel.value = id === "tekst" ? "tekst" : "afbeelding";
+
+    renderCanvas();
+  }
+
+  function verwijderLaag(id) {
+    if (!canvasKlaar.value || !getLaagObject(id)) return;
+
+    selecteerLaag(id);
+
+    if (id === "tekst") {
+      verwijderTekst();
+    } else {
+      verwijderFoto();
+    }
+  }
+
+
+  function wisselLaagZichtbaarheid(id) {
+    const laag = lagen.value.find((laag) => laag.id === id);
+    if (!laag || !getLaagObject(id)) return;
+
+    stopResize();
+    stopSlepen();
+    stopTekenen();
+    stopKleurWijziging();
+
+    bewaarToestand();
+    laag.zichtbaar = !laag.zichtbaar;
+
+    renderCanvas();
+  }
+
+  function wisselLaagVergrendeling(id) {
+    const laag = lagen.value.find((laag) => laag.id === id);
+    if (!laag || !getLaagObject(id)) return;
+
+    stopResize();
+    stopSlepen();
+    stopTekenen();
+    stopKleurWijziging();
+
+    bewaarToestand();
+    laag.vergrendeld = !laag.vergrendeld;
+
+    renderCanvas();
+  }
 
   function getActiefObject() {
-    return geselecteerdType === "tekst" ? getTekstObject() : fotoSprite;
+    if (canvasTekstActief.value || !magLaagVerplaatsen(geselecteerdType)) return null;
+
+    if (geselecteerdType === "tekst") return getTekstObject();
+
+    // De achtergrond gebruikt slepen, maar geen schaal- of draaigrepen.
+    if (geselecteerdType === "achtergrond") return null;
+
+    return fotoSprite;
   }
 
   // Leest de transformatie van de geselecteerde foto of tekst.
@@ -113,12 +252,27 @@ export function usePhotoStyler() {
       schaalX: fotoSprite?.scale.x ?? null,
       schaalY: fotoSprite?.scale.y ?? null,
       hoek: fotoSprite?.angle ?? 0,
+      achtergrondDonkerte: achtergrondDonkerte.value,
       rood: rood.value,
       groen: groen.value,
       blauw: blauw.value,
-      fotoRood: fotoRood.value,
-      fotoGroen: fotoGroen.value,
-      fotoBlauw: fotoBlauw.value,
+
+      lagen: lagen.value.map((laag) => ({
+        id: laag.id,
+        zichtbaar: laag.zichtbaar,
+        vergrendeld: laag.vergrendeld,
+      })),
+
+
+      achtergrondPositie: achtergrondSprite
+          ? {
+            x: achtergrondSprite.x,
+            y: achtergrondSprite.y,
+            uploadId: achtergrondUploadId,
+          }
+          : null,
+
+
       aantalVerfstreken: aantalVerfstreken(),
       tekst: huidigeTekst(),
     };
@@ -168,6 +322,16 @@ export function usePhotoStyler() {
     try {
       herstelVerflaag(vorige.aantalVerfstreken);
       herstelTekst(vorige.tekst ?? null);
+
+      for (const laag of lagen.value) {
+        const vorigeLaag = vorige.lagen?.find(
+            (item) => item.id === laag.id
+        );
+
+        laag.zichtbaar = vorigeLaag?.zichtbaar ?? true;
+        laag.vergrendeld = vorigeLaag?.vergrendeld ?? false;
+      }
+
       // Herstelt de positie, beide schalen en de draaihoek.
       if (fotoSprite && vorige.schaalX !== null && vorige.schaalY !== null) {
         fotoSprite.position.set(vorige.x, vorige.y);
@@ -175,17 +339,24 @@ export function usePhotoStyler() {
         fotoSprite.angle = vorige.hoek;
       }
 
+      const achtergrondPositie = vorige.achtergrondPositie;
+
+// Herstel alleen de positie van dezelfde achtergrondafbeelding.
+      if (
+          achtergrondSprite &&
+          achtergrondPositie &&
+          achtergrondPositie.uploadId === achtergrondUploadId
+      ) {
+        achtergrondSprite.position.set(
+            achtergrondPositie.x,
+            achtergrondPositie.y,
+        );
+      }
+
+      achtergrondDonkerte.value = vorige.achtergrondDonkerte ?? 0;
       rood.value = vorige.rood;
       groen.value = vorige.groen;
       blauw.value = vorige.blauw;
-
-      fotoRood.value = vorige.fotoRood;
-      fotoGroen.value = vorige.fotoGroen;
-      fotoBlauw.value = vorige.fotoBlauw;
-
-      if (fotoSprite) {
-        fotoSprite.tint = fotoTint();
-      }
 
       app.renderer.background.color = achtergrondKleur();
       renderCanvas();
@@ -277,10 +448,11 @@ export function usePhotoStyler() {
   // Werkt het kader bij voordat het canvas opnieuw wordt getekend.
   function renderCanvas() {
     if (!app || !canvasKlaar.value) return;
+
+    synchroniseerLagen();
     werkFotoKaderBij();
     app.render();
   }
-
   // Zet browserco?rdinaten om naar het formaat van het Pixi-canvas.
   function resizePunt(event) {
     const rechthoek = app.canvas.getBoundingClientRect();
@@ -551,7 +723,77 @@ export function usePhotoStyler() {
     canvasKlaar.value = true;
   }
 
-  // Laadt een afbeelding en zet deze passend in het midden.
+  // Laadt de achtergrond onafhankelijk van het logo.
+  async function uploadAchtergrond(event) {
+    const bestand = event.target.files?.[0];
+
+    if (!bestand || !canvasKlaar.value) return;
+
+    const huidigeUpload = ++achtergrondUploadId;
+    const objectUrl = URL.createObjectURL(bestand);
+
+    event.target.value = "";
+    foutmelding.value = "";
+
+    try {
+      const afbeelding = new Image();
+      afbeelding.src = objectUrl;
+      await afbeelding.decode();
+
+      if (unmounted || huidigeUpload !== achtergrondUploadId) return;
+
+      const nieuweSprite = new Sprite(Texture.from(afbeelding));
+
+      // Vult het canvas met behoud van de verhoudingen.
+      // Wat buiten het canvas valt, wordt bij export afgesneden.
+      const schaal = Math.max(
+          app.screen.width / nieuweSprite.width,
+          app.screen.height / nieuweSprite.height,
+      );
+
+      nieuweSprite.anchor.set(0.5);
+      nieuweSprite.scale.set(schaal);
+      nieuweSprite.position.set(
+          app.screen.width / 2,
+          app.screen.height / 2,
+      );
+
+      nieuweSprite.eventMode = "static";
+      nieuweSprite.cursor = "grab";
+
+      nieuweSprite.on("pointerdown", (event) => {
+        startSlepen(event, nieuweSprite);
+      });
+
+
+      if (achtergrondSprite) {
+        app.stage.removeChild(achtergrondSprite);
+        achtergrondSprite.destroy({
+          texture: true,
+          textureSource: true,
+        });
+      }
+
+      achtergrondSprite = nieuweSprite;
+      resetUploadLaag("achtergrond");
+      pasAchtergrondDonkerteToe();
+
+      // Index 0 plaatst de achtergrond onder het logo en de tekst.
+      app.stage.addChildAt(achtergrondSprite, 0);
+      achtergrondBestandsnaam.value = bestand.name;
+
+      renderCanvas();
+    } catch {
+      if (!unmounted && huidigeUpload === achtergrondUploadId) {
+        foutmelding.value =
+            "Deze achtergrond kan niet worden geopend. Probeer een andere afbeelding.";
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  // Laadt het logo en zet het passend in het midden.
   async function uploadFoto(event) {
     const file = event.target.files?.[0];
 
@@ -574,13 +816,10 @@ export function usePhotoStyler() {
       stopResize();
 
       stopSlepen();
-      herstelVerflaag();
-      kleurBegin = null;
-      herstelTekst(null);
+      stopTekenen();
+      stopKleurWijziging();
       geselecteerdType = "afbeelding";
-      fotoRood.value = 255;
-      fotoGroen.value = 255;
-      fotoBlauw.value = 255;
+
       if (fotoSprite) {
         app.stage.removeChild(fotoSprite);
         fotoSprite.destroy({ texture: true, textureSource: true });
@@ -588,6 +827,7 @@ export function usePhotoStyler() {
       fileName.value = file.name;
 
       fotoSprite = new Sprite(texture);
+      resetUploadLaag("afbeelding");
       fotoSprite.anchor.set(0.5);
       fotoSprite.position.set(app.screen.width / 2, app.screen.height / 2);
 
@@ -603,8 +843,9 @@ export function usePhotoStyler() {
       fotoSprite.on("pointerdown", startSlepen);
 
       app.stage.addChild(fotoSprite);
+      if (getTekstObject()) app.stage.addChild(getTekstObject());
       app.stage.addChild(fotoKader);
-      kiesPaneel("afbeelding");
+      kiesPaneel("uploads");
       geschiedenis.value = [];
       sleepBegin = null;
       renderCanvas();
@@ -620,32 +861,62 @@ export function usePhotoStyler() {
 
   // Verwijdert de afbeelding, verfstreken en bewerkingsgeschiedenis.
   function verwijderFoto() {
+    if (!canvasKlaar.value) return;
+
+    // Deze actie verwijdert alleen afbeeldingen.
+    if (geselecteerdType === "tekst") return;
+
+    const isAchtergrond = geselecteerdType === "achtergrond";
+    const object = isAchtergrond ? achtergrondSprite : fotoSprite;
+
+    if (!object) return;
+
     stopResize();
-    if (!fotoSprite || !canvasKlaar.value) return;
-
     stopSlepen();
-    herstelVerflaag();
-    herstelTekst(null);
-    geselecteerdType = "afbeelding";
-    tekenModus.value = false;
-    kleurBegin = null;
-    uploadId++;
+    stopTekenen();
+    stopKleurWijziging();
 
-    app.stage.removeChild(fotoSprite);
-    fotoSprite.destroy({ texture: true, textureSource: true });
-    fotoSprite = null;
+    if (isAchtergrond) {
+      achtergrondUploadId++;
+      achtergrondSprite = null;
+      achtergrondBestandsnaam.value = "";
+    } else {
+      uploadId++;
+      fotoSprite = null;
+      fileName.value = "";
+    }
 
-    fileName.value = "";
-    actiefPaneel.value = "uploads";
-    foutmelding.value = "";
+    app.stage.removeChild(object);
+    object.destroy({
+      texture: true,
+      textureSource: true,
+    });
+
+    // Oude geschiedenis verwijst mogelijk naar de verwijderde afbeelding.
     geschiedenis.value = [];
     sleepBegin = null;
+    kleurBegin = null;
+    tekenModus.value = false;
+
+    geselecteerdType = fotoSprite ? "afbeelding" : "achtergrond";
+    actiefPaneel.value = "uploads";
+    foutmelding.value = "";
 
     renderCanvas();
   }
 
   // Start het verplaatsen van de afbeelding of tekst.
   function startSlepen(event, object = fotoSprite) {
+
+    const laagId =
+        object === achtergrondSprite
+            ? "achtergrond"
+            : object === getTekstObject()
+                ? "tekst"
+                : "afbeelding";
+
+    if (!magLaagVerplaatsen(laagId)) return;
+
     if (
       !canvasKlaar.value ||
       !object ||
@@ -658,8 +929,16 @@ export function usePhotoStyler() {
     event.stopPropagation();
     event.preventDefault();
     stopKleurWijziging();
-    geselecteerdType = object === getTekstObject() ? "tekst" : "afbeelding";
-    actiefPaneel.value = geselecteerdType;
+    if (object === achtergrondSprite) {
+      geselecteerdType = "achtergrond";
+    } else if (object === getTekstObject()) {
+      geselecteerdType = "tekst";
+    } else {
+      geselecteerdType = "afbeelding";
+    }
+
+    actiefPaneel.value =
+        geselecteerdType === "tekst" ? "tekst" : "afbeelding";
 
     sleepBegin = {
       object,
@@ -679,13 +958,39 @@ export function usePhotoStyler() {
     renderCanvas();
   }
 
-  // Laat de afbeelding of tekst de aanwijzer volgen.
   function tijdensSlepen(event) {
     const actie = sleepBegin;
-    if (!slepen || !actie || event.pointerId !== actie.pointerId) return;
+
+    if (!slepen || !actie || event.pointerId !== actie.pointerId) {
+      return;
+    }
+
     event.preventDefault();
+
     const punt = resizePunt(event);
-    actie.object.position.set(punt.x - verschil.x, punt.y - verschil.y);
+    const object = actie.object;
+
+    let x = punt.x - verschil.x;
+    let y = punt.y - verschil.y;
+
+    if (object === achtergrondSprite) {
+      const halveBreedte = object.width / 2;
+      const halveHoogte = object.height / 2;
+
+      // De achtergrond heeft een middelpunt als anker.
+      // Begrens de positie zodat iedere canvasrand bedekt blijft.
+      x = Math.max(
+          app.screen.width - halveBreedte,
+          Math.min(halveBreedte, x),
+      );
+
+      y = Math.max(
+          app.screen.height - halveHoogte,
+          Math.min(halveHoogte, y),
+      );
+    }
+
+    object.position.set(x, y);
     renderCanvas();
   }
 
@@ -711,6 +1016,54 @@ export function usePhotoStyler() {
       app.canvas.releasePointerCapture(actie.pointerId);
     }
   }
+
+  // Plaatst het volledige logo, inclusief rotatie, binnen een marge van 32 px.
+  function plaatsLogo(positie) {
+    if (!magLaagVerplaatsen("afbeelding")) return;
+
+    const posities = {
+      midden: [0.5, 0.5],
+      linksboven: [0, 0],
+      rechtsboven: [1, 0],
+      linksonder: [0, 1],
+      rechtsonder: [1, 1],
+    };
+    if (!fotoSprite || !canvasKlaar.value || !posities[positie]) return;
+    kiesPaneel("afbeelding");
+    const vorige = huidigeToestand();
+    const marge = 32;
+    const cos = Math.abs(Math.cos(fotoSprite.rotation));
+    const sin = Math.abs(Math.sin(fotoSprite.rotation));
+    let breedte = fotoSprite.width * cos + fotoSprite.height * sin;
+    let hoogte = fotoSprite.width * sin + fotoSprite.height * cos;
+    const factor = Math.min(1,
+      (app.screen.width - 2 * marge) / breedte,
+      (app.screen.height - 2 * marge) / hoogte);
+    fotoSprite.scale.set(fotoSprite.scale.x * factor, fotoSprite.scale.y * factor);
+    breedte *= factor;
+    hoogte *= factor;
+    const [x, y] = posities[positie];
+    fotoSprite.position.set(
+      marge + breedte / 2 + x * (app.screen.width - 2 * marge - breedte),
+      marge + hoogte / 2 + y * (app.screen.height - 2 * marge - hoogte),
+    );
+    if (JSON.stringify(vorige) !== JSON.stringify(huidigeToestand())) {
+      bewaarToestand(vorige);
+    }
+    renderCanvas();
+  }
+
+  // Een grijze tint verduistert uitsluitend de achtergrondfoto.
+  function pasAchtergrondDonkerteToe() {
+    if (!achtergrondSprite) return;
+    const kanaal = Math.round(255 * (1 - achtergrondDonkerte.value / 100));
+    achtergrondSprite.tint = (kanaal << 16) | (kanaal << 8) | kanaal;
+  }
+
+  watch(achtergrondDonkerte, () => {
+    pasAchtergrondDonkerteToe();
+    renderCanvas();
+  }, { flush: "sync" });
 
   // Draait de afbeelding met het opgegeven aantal graden.
   function draaiFoto(graden) {
@@ -751,7 +1104,8 @@ export function usePhotoStyler() {
   // Combineert achtergrond, afbeelding en verf tot een PNG-download.
   function downloadFoto() {
     stopResize();
-    if (!canvasKlaar.value || !fotoSprite) return;
+    stopCanvasTekst();
+    if (!canvasKlaar.value || (!fotoSprite && !achtergrondSprite && !getTekstObject())) return;
 
     stopTekenen();
     const kaderWasZichtbaar = fotoKader.visible;
@@ -783,14 +1137,11 @@ export function usePhotoStyler() {
     rood,
     groen,
     blauw,
-    fotoRood,
-    fotoGroen,
-    fotoBlauw,
+
     achtergrondKanalen,
-    tintKanalen,
+
     achtergrondVoorbeeld,
     achtergrondKleur,
-    fotoTint,
   } = useKleuren();
 
   const {
@@ -813,6 +1164,11 @@ export function usePhotoStyler() {
 
   // Verbindt de tekstbediening met het canvas en de geschiedenis.
   const {
+    canvasTekstActief,
+    canvasTekstInvoer,
+    canvasTekstOpmaak,
+    startCanvasTekst,
+    stopCanvasTekst,
     tekstFormulier,
     pasTekstToe,
     verwijderTekst,
@@ -824,7 +1180,8 @@ export function usePhotoStyler() {
     getApp: () => app,
     getFotoKader: () => fotoKader,
     kanBewerken: () =>
-      canvasKlaar.value && Boolean(fotoSprite) && !inspectorsVergrendeld.value,
+        canvasKlaar.value &&
+        !inspectorsVergrendeld.value,
     voorBewerking: () => kiesPaneel("tekst"),
     startSlepen,
     naToepassen: () => {
@@ -839,18 +1196,6 @@ export function usePhotoStyler() {
     stopResize();
     renderCanvas();
   });
-
-  // Past de fototint direct toe wanneer de kleurwaarden veranderen.
-  watch(
-    [fotoRood, fotoGroen, fotoBlauw],
-    () => {
-      if (!fotoSprite || bezigMetHerstellen) return;
-
-      fotoSprite.tint = fotoTint();
-      renderCanvas();
-    },
-    { flush: "sync" },
-  );
 
   // Past een gewijzigde achtergrondkleur direct toe op het canvas.
   watch(
@@ -878,6 +1223,7 @@ export function usePhotoStyler() {
   onBeforeUnmount(() => {
     stopResize();
     unmounted = true;
+    achtergrondUploadId++;
     window.removeEventListener("pointermove", tijdensResize);
     window.removeEventListener("pointerup", stopResize);
     window.removeEventListener("pointercancel", stopResize);
@@ -893,6 +1239,21 @@ export function usePhotoStyler() {
   });
 
   return {
+    canvasTekstActief,
+    canvasTekstInvoer,
+    canvasTekstOpmaak,
+    startCanvasTekst,
+    stopCanvasTekst,
+    lagen,
+    geselecteerdeLaag,
+    selecteerLaag,
+    verwijderLaag,
+    wisselLaagZichtbaarheid,
+    wisselLaagVergrendeling,
+    plaatsLogo,
+    achtergrondDonkerte,
+    achtergrondBestandsnaam,
+    uploadAchtergrond,
     fileName,
     geschiedenis,
     ongedaanMaken,
@@ -905,7 +1266,7 @@ export function usePhotoStyler() {
     uploadFoto,
     veranderSchaal,
     draaiFoto,
-    tintKanalen,
+
     startKleurWijziging,
     stopKleurWijziging,
     verwijderFoto,
