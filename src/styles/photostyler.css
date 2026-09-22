@@ -4,7 +4,7 @@
   background: #f2f4f3;
 }
 .editor {
-  color: #ADD8E6;
+  color: #00ABC1;
   font-family: "Segoe UI", Arial, sans-serif;
   font-size: 14px;
 }
@@ -32,9 +32,26 @@
     background 0.15s,
     border-color 0.15s;
 }
+
+:deep(.tekstveld select){
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dfe5e2;
+  border-radius: 8px;
+  background: #fff;
+  color: #172e2b;
+  font: inherit;
+  cursor: pointer;
+}
+
+:deep(.tekstveld select:focus-visible){
+  outline: 3px solid #00ABC1;
+  outline-offset: 3px;
+}
+
 :deep(button:hover:not(:disabled)) {
   background: #edf4ef;
-  border-color: #ADD8E6;
+  border-color: #00ABC1;
 }
 :deep(button:disabled),
 :deep(fieldset:disabled) {
@@ -46,7 +63,7 @@
 :deep(button:focus-visible),
 :deep(input:focus-visible),
 :deep(.uploadveld:focus-within) {
-  outline: 3px solid #ADD8E6;
+  outline: 3px solid #00ABC1;
   outline-offset: 3px;
 }
 :deep(svg) {
@@ -119,7 +136,7 @@
   background: #ffffff15;
 }
 :deep(.download) {
-  background: #ADD8E6;
+  background: #00ABC1;
   color: #183d32;
   border-color: #d4edb9;
   font-weight: 650;
@@ -156,8 +173,29 @@
 }
 :deep(.gereedschappen button.actief) {
   color: #234d39;
-  background: #ADD8E6;
+  background: #00ABC1;
 }
+
+/*Knoppen vet en cursief*/
+:deep(.tekstopmaak){
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+:deep(.tekstopmaak button){
+  flex: 1;
+  min-height: 44px;
+  color: #172e2b;
+}
+
+:deep(.tekstopmaak button[aria-pressed="true"]){
+  background: #00ABC1;
+  border-color: #00abc1;
+  color: #172e2b;
+}
+
 :deep(.railvoet) {
   margin-top: auto;
   padding: 25px 3px 5px;
@@ -225,6 +263,41 @@
 :deep(.uploadveld:disabled) {
   opacity: 0.45;
 }
+
+
+/*Tekststijl  van de bedieningspaneel */
+:deep(.paneel){
+font-family: "Segoe UI", Arial, sans-serif;
+font-size: 14px;
+line-height: 1.6;
+color: #243746
+}
+
+:deep(.paneel h2){
+color: #00ABC1;
+font-weight: 700;
+line-height: 1.2;
+}
+
+:deep(.paneel h3){
+  color: #243746;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:deep(.paneel p){
+  color: #64748b;
+}
+
+:deep(.paneel .bovenlabel){
+  color: #00ABC1;
+}
+
+:deep(.paneel .tip){
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 :deep(.bestandkaart) {
   display: flex;
   align-items: center;
@@ -688,6 +761,133 @@
 }
 
 :deep(.tekstveld textarea:focus-visible) {
-  outline: 3px solid #add8e6;
+  outline: 3px solid #00ABC1;
   outline-offset: 3px;
 }
+
+/* Tbalet en mobiele */
+@media (max-width: 1100px){
+  :deep(.bovenbalk){
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  :deep(.ontwerpnaam){
+    order: 3;
+    width: 100%;
+    border: 0;
+    padding: 0;
+  }
+
+  :deep(h1){
+    max-width: 100%;
+  }
+
+  :deep(.gereedschappen){
+    grid-column: 1/ -1;
+    flex-direction: Row;
+    gap: 8px;
+    padding: 10px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid #e5ebe7;
+  }
+
+  :deep(.railvoet){
+    display: none;
+  }
+
+  :deep(.gereedschappen button) {
+    flex: 1 0 72px;
+    min-height: 64px;
+    padding: 10px 6px;
+
+  }
+
+  :deep(.instellingen){
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  :deep(.paneel){
+    padding: 20px 16px;
+  }
+
+  :deep(.werkbalk),
+  :deep(.werkruimtevoet){
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  :deep(button){
+    min-height: 44px;
+  }
+
+  :deep(.tekstveld input),
+  :deep(.tekstveld textarea),
+  :deep(.tekstveld select){
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  :deep(.kleurpalet button){
+    width: 44px;
+    height: 44px;
+  }
+
+  :deep(.knoppenrij){
+    flex-wrap: wrap;
+  }
+  /* Tablet*/
+  @media (min-width: 761px) and (max-width: 1100px) {
+    :deep(.editorindeling) {
+      grid-template-columns: 260px minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+    }
+
+    :deep(.canvasgebied) {
+      padding: 20px;
+    }
+  }
+
+  /* Mobiel: instellingen en canvas onder elkaar. */
+  @media (max-width: 760px) {
+    :deep(.editorindeling) {
+      grid-template-columns: minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    :deep(.instellingen){
+    border-right: 0;
+      border-bottom: 1px solid #e5ebe7
+    }
+
+    :deep(.hoofdacties){
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+
+    :deep(.werkruimte){
+      min-height: 0;
+    }
+
+    :deep(.canvasgebied){
+      padding: 16px 12px;
+    }
+
+    :deep(.knopperij > *){
+      flex: 1 1 120px;
+      min-width: 0;
+    }
+
+    :deep(.werkbalk > button){
+      width: 100%;
+      order: 3;
+    }
+
+    :deep(.canvashint){
+      margin-top: 12px;
+    }
+  }
+  }

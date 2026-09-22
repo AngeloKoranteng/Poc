@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { wijzigInhoud } from "../../composables/photostyler/tekstOpmaak.js";
 
 const {
   canvasTekstActief,
@@ -20,6 +21,9 @@ const stijl = computed(() => {
     left: `${(Number(tekst.x) || 0) / 8}%`,
     top: `${(Number(tekst.y) || 0) / 5}%`,
     color: tekst.kleur,
+    fontFamily: tekst.lettertype ?? "Arial",
+    fontWeight: tekst.vet ? "bold" : "normal",
+    fontStyle: tekst.cursief ? "italic" : "normal",
     fontSize: `${tekst.grootte}px`,
     transform: `translate(-50%, -50%) rotate(${tekst.hoek ?? 0}deg) scale(${verhouding * (tekst.schaalX ?? 1)}, ${verhouding * (tekst.schaalY ?? 1)})`,
   };
@@ -52,6 +56,14 @@ function toets(event) {
   }
 }
 
+function veranderCanvasInhoud(event) {
+  canvasTekstOpmaak.value = wijzigInhoud(
+      canvasTekstOpmaak.value,
+      event.target.value,
+  );
+  pasHoogteAan();
+}
+
 onMounted(() => {
   observer = new ResizeObserver(([entry]) => {
     canvasBreedte.value = entry.contentRect.width;
@@ -73,7 +85,7 @@ onBeforeUnmount(() => observer?.disconnect());
       maxlength="500"
       aria-label="Tekst op het canvas"
       placeholder="Typ je tekst…"
-      @input="pasHoogteAan"
+      @input="veranderCanvasInhoud"
       @keydown.stop="toets"
       @pointerdown.stop
       @dblclick.stop

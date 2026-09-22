@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { SourceTextModule, SyntheticModule, createContext } from "node:vm";
 import { ref, computed, watch, effectScope } from "vue";
+import { getPlainText, parseTaggedText, TextStyle } from "pixi.js";
+
+function zichtbareTekst(object) {
+  return getPlainText(object.text, new TextStyle(object.style));
+}
 
 // Tests the real editor logic with a minimal renderer and browser event surface.
 class EventTarget {
@@ -112,6 +117,10 @@ class Graphics extends DisplayObject {
   }
 }
 class Sprite extends DisplayObject {
+  constructor(texture) {
+    super();
+    this.texture = texture;
+  }
   baseWidth = 400;
   baseHeight = 250;
 }
@@ -183,7 +192,17 @@ async function setup() {
       async decode() {}
     },
     URL: { createObjectURL: () => "blob:test", revokeObjectURL() {} },
-    document: { createElement: () => ({ click() {} }) },
+    document: { createElement: (tag) => {
+      if (tag !== "canvas") return { click() {} };
+      const canvas = { width: 2, height: 1 };
+      canvas.getContext = () => ({
+        drawImage() {},
+        getImageData: () => ({ data: new Uint8ClampedArray([40, 80, 120, 128, 200, 100, 0, 255]) }),
+        createImageData: () => ({ data: new Uint8ClampedArray(8) }),
+        putImageData: (image) => { canvas.pixels = Array.from(image.data); },
+      });
+      return canvas;
+    } },
   });
   const sources = {
     vue: {
@@ -199,7 +218,12 @@ async function setup() {
       Sprite,
       Text,
       Rectangle: class {},
-      Texture: { from: () => ({}) },
+      Texture: { from: (resource) => ({
+        width: 2,
+        height: 1,
+        source: { resource, update() {}, unload() {} },
+        destroy() { this.destroyed = true; },
+      }) },
     },
   };
   const cache = new Map();
@@ -339,7 +363,7 @@ test("rotating and stretching text survive content edits and successive undo ope
     near(h.text.scale.x, 1.5);
     near(h.text.y, 300);
     h.editor.ongedaanMaken();
-    assert.equal(h.text.text, "Onze club");
+    assert.equal(zichtbareTekst(h.text), "Onze club");
     near(h.text.angle, 90);
     h.editor.ongedaanMaken();
     near(h.text.scale.x, 1);
@@ -567,14 +591,14 @@ test("canvas typing saves multiple lines as one undo step and preserves transfor
     assert.equal(h.text.visible, false);
     h.editor.canvasTekstInvoer.value = 'Eerste regel\nTweede regel';
     h.editor.stopCanvasTekst();
-    assert.equal(h.text.text, 'Eerste regel\nTweede regel');
+    assert.equal(zichtbareTekst(h.text), 'Eerste regel\nTweede regel');
     assert.equal(h.text.visible, true);
     near(h.text.x, 320);
     near(h.text.scale.x, 1.2);
     near(h.text.angle, 15);
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
     h.editor.ongedaanMaken();
-    assert.equal(h.text.text, 'Onze club');
+    assert.equal(zichtbareTekst(h.text), 'Onze club');
   } finally { h.close(); }
 });
 
@@ -585,7 +609,7 @@ test("cancel and unchanged canvas text do not create history; clearing text can 
     h.editor.startCanvasTekst();
     h.editor.canvasTekstInvoer.value = 'Annuleren';
     h.editor.stopCanvasTekst(false);
-    assert.equal(h.text.text, 'Onze club');
+    assert.equal(zichtbareTekst(h.text), 'Onze club');
     assert.equal(h.text.visible, true);
     assert.equal(h.editor.geschiedenis.value.length, count);
     h.editor.startCanvasTekst();
@@ -596,7 +620,7 @@ test("cancel and unchanged canvas text do not create history; clearing text can 
     h.editor.stopCanvasTekst();
     assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, false);
     h.editor.ongedaanMaken();
-    assert.ok(h.app.stage.children.some(o => o instanceof Text && o.text === 'Onze club'));
+    assert.ok(h.app.stage.children.some(o => o instanceof Text && zichtbareTekst(o) === 'Onze club'));
   } finally { h.close(); }
 });
 
@@ -609,6 +633,94 @@ test("canvas typing creates text without an image and export commits the draft",
     h.editor.canvasTekstInvoer.value = 'Alleen tekst\nOp het canvas';
     h.editor.downloadFoto();
     assert.equal(h.editor.canvasTekstActief.value, false);
-    assert.ok(h.app.exported.some(o => o instanceof Text && o.text === 'Alleen tekst\nOp het canvas'));
+    assert.ok(h.app.exported.some(o => o instanceof Text && zichtbareTekst(o) === 'Alleen tekst\nOp het canvas'));
+  } finally { h.close(); }
+});
+
+
+test("partial bold and italic formatting survives apply, canvas editing and undo", async () => {
+  const h = await setup();
+  try {
+    const opmaak = [0, 0, 0, 0, 0, 1, 1, 3, 3];
+    h.editor.tekstFormulier.value.opmaak = opmaak;
+    h.editor.pasTekstToe();
+    const runs = parseTaggedText(h.text.text, new TextStyle(h.text.style));
+    assert.deepEqual(runs.map(run => [run.text, run.style.fontWeight, run.style.fontStyle]), [
+      ["Onze ", "normal", "normal"],
+      ["cl", "bold", "normal"],
+      ["ub", "bold", "italic"],
+    ]);
+    h.editor.startCanvasTekst();
+    assert.deepEqual(Array.from(h.editor.canvasTekstOpmaak.value.opmaak), opmaak);
+    h.editor.stopCanvasTekst();
+    h.editor.ongedaanMaken();
+    assert.equal(zichtbareTekst(h.text), "Onze club");
+    assert.ok(parseTaggedText(h.text.text, new TextStyle(h.text.style))
+      .every(run => run.style.fontWeight === "normal" && run.style.fontStyle === "normal"));
+  } finally { h.close(); }
+});
+
+test("canvas exposure uses original pixels, preserves alpha and supports reset and undo", async () => {
+  const h = await setup();
+  try {
+    h.editor.selecteerLaag('afbeelding');
+    const origineel = h.photo.texture;
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.veranderBelichting(1);
+    const bewerkt = h.photo.texture;
+    assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [80, 160, 240, 128]);
+    h.editor.veranderBelichting(-1);
+    assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [20, 40, 60, 128]);
+    h.editor.stopKleurWijziging();
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.ongedaanMaken();
+    assert.equal(h.photo.texture, origineel);
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    h.editor.veranderBelichting(2);
+    h.editor.stopKleurWijziging();
+    assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [160, 255, 255, 128]);
+    h.editor.downloadFoto();
+    assert.equal(h.app.exported.find(o => o === h.photo).texture, bewerkt);
+    h.editor.resetBelichting();
+    assert.equal(h.photo.texture, origineel);
+    h.editor.ongedaanMaken();
+    assert.equal(h.photo.texture, bewerkt);
+    assert.equal(h.editor.belichtingWaarde.value, 2);
+    h.editor.wisselLaagVergrendeling('afbeelding');
+    h.editor.veranderBelichting(-2);
+    assert.equal(h.editor.belichtingWaarde.value, 2);
+    assert.equal(h.text.texture, undefined);
+  } finally { h.close(); }
+});
+
+test("exposure is separate per image and resets and releases resources on replacement", async () => {
+  const h = await setup();
+  try {
+    h.editor.selecteerLaag('afbeelding');
+    h.editor.veranderBelichting(1);
+    h.editor.stopKleurWijziging();
+    const oudeFotoTexture = h.photo.texture;
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    h.editor.selecteerLaag('achtergrond');
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    h.editor.veranderBelichting(-1);
+    h.editor.stopKleurWijziging();
+    const oudeAchtergrond = h.app.stage.children[0];
+    const oudeTexture = oudeAchtergrond.texture;
+    assert.deepEqual(oudeTexture.source.resource.pixels.slice(0, 4), [20, 40, 60, 128]);
+    assert.deepEqual(oudeFotoTexture.source.resource.pixels.slice(0, 4), [80, 160, 240, 128]);
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'new-bg.png' }], value: '' } });
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    assert.equal(oudeTexture.destroyed, true);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    await h.editor.uploadFoto({ target: { files: [{ name: 'new.png' }], value: '' } });
+    assert.equal(oudeFotoTexture.destroyed, true);
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    h.editor.veranderBelichting(1);
+    h.editor.stopKleurWijziging();
+    const texture = h.app.stage.children.find(o => o instanceof Sprite && o !== h.app.stage.children[0]).texture;
+    h.editor.verwijderFoto();
+    assert.equal(texture.destroyed, true);
   } finally { h.close(); }
 });

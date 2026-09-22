@@ -1,10 +1,10 @@
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Application, Graphics, Sprite, Texture, Rectangle } from "pixi.js";
-
 import { panelen, kwastPalet } from "./config.js";
 import { useKleuren } from "./useKleuren.js";
 import { useVerflaag } from "./useVerflaag.js";
 import { useTekst } from "./useTekst.js";
+import { useBelichting } from "./useBelichting.js";
 
 export function usePhotoStyler() {
   // Verwijzingen naar het canvas, de verflaag en het uploadveld.
@@ -69,6 +69,53 @@ export function usePhotoStyler() {
   ]);
 
   const geselecteerdeLaag = ref(geselecteerdType);
+  // Elke afbeelding bewaart haar eigen belichting.
+  const belichtingen = ref({
+    afbeelding: 0,
+    achtergrond: 0,
+  });
+
+  const belichtingsBewerking = useBelichting();
+
+  const belichtingWaarde = computed(
+      () => belichtingen.value[geselecteerdeLaag.value] ?? 0,
+  );
+
+  const belichtingBeschikbaar = computed(() =>
+      canvasKlaar.value &&
+      !inspectorsVergrendeld.value &&
+      lagen.value.some(
+          (laag) =>
+              laag.id === geselecteerdeLaag.value &&
+              laag.id !== "tekst" &&
+              laag.aanwezig &&
+              laag.zichtbaar &&
+              !laag.vergrendeld,
+      ),
+  );
+
+  function veranderBelichting(waarde) {
+    if (!belichtingBeschikbaar.value) return;
+
+    const getal = Number(waarde);
+    if (!Number.isFinite(getal)) return;
+
+    startKleurWijziging();
+
+    belichtingen.value[geselecteerdeLaag.value] =
+        Math.max(-2, Math.min(2, getal));
+
+    renderCanvas();
+  }
+
+  function resetBelichting() {
+    veranderBelichting(0);
+    stopKleurWijziging();
+  }
+
+  function pasBelichtingToe(id) {
+    belichtingsBewerking.pasToe(id, belichtingen.value[id]);
+  }
 
   function getLaagObject(id) {
     if (id === "tekst") return getTekstObject();
@@ -253,6 +300,8 @@ export function usePhotoStyler() {
       schaalY: fotoSprite?.scale.y ?? null,
       hoek: fotoSprite?.angle ?? 0,
       achtergrondDonkerte: achtergrondDonkerte.value,
+      belichtingen: { ...belichtingen.value },
+      belichtingAchtergrondUploadId: achtergrondUploadId,
       rood: rood.value,
       groen: groen.value,
       blauw: blauw.value,
@@ -352,7 +401,13 @@ export function usePhotoStyler() {
             achtergrondPositie.y,
         );
       }
-
+      belichtingen.value = {
+        afbeelding: vorige.belichtingen?.afbeelding ?? 0,
+        achtergrond:
+            vorige.belichtingAchtergrondUploadId === achtergrondUploadId
+                ? vorige.belichtingen?.achtergrond ?? 0
+                : belichtingen.value.achtergrond,
+      };
       achtergrondDonkerte.value = vorige.achtergrondDonkerte ?? 0;
       rood.value = vorige.rood;
       groen.value = vorige.groen;
@@ -448,6 +503,9 @@ export function usePhotoStyler() {
   // Werkt het kader bij voordat het canvas opnieuw wordt getekend.
   function renderCanvas() {
     if (!app || !canvasKlaar.value) return;
+
+    pasBelichtingToe("afbeelding");
+    pasBelichtingToe("achtergrond");
 
     synchroniseerLagen();
     werkFotoKaderBij();
@@ -767,6 +825,7 @@ export function usePhotoStyler() {
 
 
       if (achtergrondSprite) {
+        belichtingsBewerking.verwijder("achtergrond");
         app.stage.removeChild(achtergrondSprite);
         achtergrondSprite.destroy({
           texture: true,
@@ -775,6 +834,8 @@ export function usePhotoStyler() {
       }
 
       achtergrondSprite = nieuweSprite;
+      belichtingsBewerking.registreer("achtergrond", achtergrondSprite, afbeelding);
+      belichtingen.value.achtergrond = 0;
       resetUploadLaag("achtergrond");
       pasAchtergrondDonkerteToe();
 
@@ -821,12 +882,15 @@ export function usePhotoStyler() {
       geselecteerdType = "afbeelding";
 
       if (fotoSprite) {
+        belichtingsBewerking.verwijder("afbeelding");
         app.stage.removeChild(fotoSprite);
         fotoSprite.destroy({ texture: true, textureSource: true });
       }
       fileName.value = file.name;
 
       fotoSprite = new Sprite(texture);
+      belichtingsBewerking.registreer("afbeelding", fotoSprite, afbeelding);
+      belichtingen.value.afbeelding = 0;
       resetUploadLaag("afbeelding");
       fotoSprite.anchor.set(0.5);
       fotoSprite.position.set(app.screen.width / 2, app.screen.height / 2);
@@ -886,6 +950,8 @@ export function usePhotoStyler() {
       fileName.value = "";
     }
 
+    belichtingsBewerking.verwijder(isAchtergrond ? "achtergrond" : "afbeelding");
+    belichtingen.value[isAchtergrond ? "achtergrond" : "afbeelding"] = 0;
     app.stage.removeChild(object);
     object.destroy({
       texture: true,
@@ -1231,11 +1297,13 @@ export function usePhotoStyler() {
     uploadId++;
     stopTekenen();
 
+    belichtingsBewerking.ruimOp();
     if (canvasKlaar.value) {
       app.canvas.removeEventListener("wheel", zoomMetMuis);
       app.canvas.removeEventListener("lostpointercapture", stopResize);
       app.destroy(true, { children: true, texture: true, textureSource: true });
     }
+
   });
 
   return {
@@ -1275,6 +1343,10 @@ export function usePhotoStyler() {
     kwastKleur,
     kwastPalet,
     kwastGrootte,
+    belichtingWaarde,
+    belichtingBeschikbaar,
+    veranderBelichting,
+    resetBelichting,
     achtergrondVoorbeeld,
     achtergrondKanalen,
     foutmelding,

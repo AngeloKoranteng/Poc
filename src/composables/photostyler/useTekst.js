@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { Text } from "pixi.js";
+import { leesOpmaak, maakCanvasTekst } from "./tekstOpmaak.js";
 
 export function useTekst({
   getApp,
@@ -16,6 +17,10 @@ export function useTekst({
     inhoud: "",
     kleur: "#172e2b",
     grootte: 36,
+    lettertype: "Arial",
+    vet: false,
+    cursief: false,
+    opmaak: [],
     x: 400,
     y: 250,
   };
@@ -104,10 +109,14 @@ export function useTekst({
       app.stage.addChild(getFotoKader());
     }
 
-    tekstObject.text = toestand.inhoud;
+   const canvasTekst = maakCanvasTekst(toestand);
+    tekstObject.text = canvasTekst.text;
     tekstObject.style = {
-      fontFamily: "Arial",
+      fontFamily: toestand.lettertype ?? "Arial",
+      fontWeight: toestand.vet ? "bold" : "normal",
+      fontStyle: toestand.cursief ? "italic" : "normal",
       fontSize: toestand.grootte,
+      tagStyles: canvasTekst.tagStyles,
       fill: toestand.kleur,
       align: "center",
       wordWrap: true,
@@ -124,15 +133,19 @@ export function useTekst({
     if (!kanBewerken()) return;
 
     const formulier = tekstFormulier.value;
-    const inhoud = formulier.inhoud.trim();
+    const inhoud = formulier.inhoud;
 
-    if (!inhoud) return;
+    if (!inhoud.trim()) return;
 
     voorBewerking();
 
     const volgende = {
       inhoud,
+      opmaak: leesOpmaak(formulier),
       kleur: formulier.kleur,
+      lettertype: formulier.lettertype ?? "Arial",
+      vet: !!formulier.vet,
+      cursief: !!formulier.cursief,
       grootte: begrens(formulier.grootte, 8, 160, 36),
       // Slepen mag de tekst ook gedeeltelijk buiten het canvas plaatsen.
       x:
