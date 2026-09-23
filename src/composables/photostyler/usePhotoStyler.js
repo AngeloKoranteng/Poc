@@ -491,14 +491,38 @@ export function usePhotoStyler() {
       return blokje;
     });
 
-    draaiGreep = new Graphics()
-      .circle(0, 0, 7)
-      .fill({ color: 0xffffff })
-      .stroke({ width: 2, color: 0x3b82f6 });
+ //witte knop met ronde pijl
+    draaiGreep= new Graphics()
+        .circle(0, 0, 14)
+        .fill({ color: 0xffffff })
+        .stroke({ width: 2, color: 0x3b82f6});
+
+
+    //Gebogen lijn van het draaien
+    draaiGreep
+        .arc(0, 0, 7, 0, Math.PI * 1.5)
+        .stroke({
+          width: 2,
+          color: 0x172e2b,
+          cap: "round",
+        });
+
+    //Pijlpunt
+    draaiGreep
+        .moveTo(-4, -11,)
+        .lineTo(0, -7)
+        .lineTo(-4, -3)
+        .stroke({
+          width: 2,
+          color: 0x172e2b,
+          cap: "round",
+          join: "round",
+
+        });
 
     draaiGreep.eventMode = "static";
     draaiGreep.cursor = "grab";
-    draaiGreep.hitArea = new Rectangle(-14, -14, 28, 28);
+    draaiGreep.hitArea = new Rectangle(-22, -22, 44, 44);
     draaiGreep.on("pointerdown", startDraaien);
 
     fotoKader.addChild(draaiGreep);
