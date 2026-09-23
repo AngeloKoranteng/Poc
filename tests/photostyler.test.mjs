@@ -724,3 +724,74 @@ test("exposure is separate per image and resets and releases resources on replac
     assert.equal(texture.destroyed, true);
   } finally { h.close(); }
 });
+
+test("choosing a background color replaces the visible background photo and undoes in one step", async () => {
+  const h = await setup();
+  try {
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    const background = h.app.stage.children[0];
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.kiesAchtergrondKleur('#FF0000');
+    assert.equal(h.app.renderer.background.color, 'rgb(255, 0, 0)');
+    assert.equal(background.visible, false);
+    assert.equal(background.destroyed, undefined);
+    assert.equal(h.photo.visible, true);
+    assert.equal(h.text.visible, true);
+    assert.equal(h.editor.achtergrondBestandsnaam.value, 'bg.png');
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.downloadFoto();
+    assert.ok(!h.app.exported.includes(background));
+    assert.ok(h.app.exported.includes(h.photo));
+    h.editor.ongedaanMaken();
+    assert.equal(background.visible, true);
+    assert.equal(h.app.renderer.background.color, 'rgb(230, 230, 230)');
+    assert.equal(h.editor.geschiedenis.value.length, count);
+    // Even an already selected color must hide a covering background photo.
+    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    assert.equal(background.visible, false);
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+  } finally { h.close(); }
+});
+
+test("live background color picker updates immediately and groups its undo history", async () => {
+  const h = await setup();
+  try {
+    const count = h.editor.geschiedenis.value.length;
+    h.editor.kiesAchtergrondKleur('#ff0000', true);
+    assert.equal(h.app.renderer.background.color, 'rgb(255, 0, 0)');
+    h.editor.kiesAchtergrondKleur('#00abc1', true);
+    assert.equal(h.app.renderer.background.color, 'rgb(0, 171, 193)');
+    h.editor.kiesAchtergrondKleur('#00abc1');
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.ongedaanMaken();
+    assert.equal(h.app.renderer.background.color, 'rgb(230, 230, 230)');
+    h.editor.kiesAchtergrondKleur('geen kleur');
+    assert.equal(h.editor.geschiedenis.value.length, count);
+  } finally { h.close(); }
+});
+
+test("a solid background is a downloadable design without an image and undo restores the empty state", async () => {
+  const h = await setup();
+  try {
+    h.editor.verwijderLaag('tekst');
+    h.editor.verwijderLaag('afbeelding');
+    assert.equal(h.editor.achtergrondIngesteld.value, false);
+    const count = h.editor.geschiedenis.value.length;
+    // Choosing even the initial gray explicitly creates a background.
+    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    assert.equal(h.editor.achtergrondIngesteld.value, true);
+    assert.equal(h.editor.geschiedenis.value.length, count + 1);
+    h.editor.downloadFoto();
+    assert.ok(Array.isArray(h.app.exported));
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.achtergrondIngesteld.value, false);
+    h.editor.startKleurWijziging();
+    h.editor.achtergrondKanalen[0].waarde.value = 100;
+    h.editor.stopKleurWijziging();
+    assert.equal(h.editor.achtergrondIngesteld.value, true);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.achtergrondIngesteld.value, false);
+  } finally { h.close(); }
+});

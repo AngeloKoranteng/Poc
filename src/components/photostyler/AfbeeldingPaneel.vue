@@ -51,6 +51,11 @@ const functies = [
   },
 ];
 
+const functiegroepen = [
+  { naam: "BASIS", items: functies.slice(0, 3) },
+  { naam: "VERBETEREN", items: functies.slice(3) },
+];
+
 function isOpen(id) {
   return openMenus.value.includes(id);
 }
@@ -88,27 +93,32 @@ function wisselMenu(id) {
       Logo of achtergrond toevoegen
     </button>
 
-    <!-- Icoonknoppen voor de verschillende instellingen. -->
-    <div
-        class="functieknoppen"
+    <!-- Compacte functielijst met kleine iconen en zichtbare namen. -->
+    <div class="functieknoppen">
+      <div
+        v-for="groep in functiegroepen"
+        :key="groep.naam"
+        class="functiegroep"
         role="group"
-        aria-label="Afbeeldingsinstellingen"
-    >
-      <button
-          v-for="functie in functies"
+        :aria-label="groep.naam"
+      >
+        <h3 class="functiegroep-titel">{{ groep.naam }}</h3>
+
+        <button
+          v-for="functie in groep.items"
           :key="functie.id"
           class="functieknop"
           type="button"
           :aria-expanded="isOpen(functie.id)"
           :aria-controls="`${menuId}-${functie.id}`"
-          :aria-label="`${functie.naam} ${isOpen(functie.id) ? 'sluiten' : 'openen'}`"
-          :title="functie.naam"
           @click="wisselMenu(functie.id)"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path :d="functie.icoon" />
-        </svg>
-      </button>
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path :d="functie.icoon" />
+          </svg>
+          <span>{{ functie.naam }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- Positioneren -->
@@ -287,28 +297,84 @@ function wisselMenu(id) {
 
 <style scoped>
 .functieknoppen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 22px;
+  margin-top: 24px;
 }
 
-.functieknop {
-  width: 44px;
-  height: 44px;
-  padding: 10px;
-  flex-shrink: 0;
+.functiegroep {
+  padding: 14px 0;
+}
+
+.functiegroep + .functiegroep {
+  border-top: 1px solid #e5e7eb;
+}
+
+.functieknoppen .functiegroep-titel {
+  margin: 0 0 8px;
+  padding: 0 12px;
+  color: #7b828b;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.functieknoppen .functieknop {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 11px 12px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #343b43;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.functieknoppen .functieknop svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: #7b828b;
+}
+
+.functieknoppen .functieknop:hover:not(:disabled) {
+  background: #f3f5f6;
+  border-left-color: transparent;
+}
+
+.functieknoppen .functieknop[aria-expanded="true"] {
+  background: #edf8fa;
+  border-left-color: #00abc1;
   color: #172e2b;
 }
 
-.functieknop[aria-expanded="true"] {
-  background: #00abc1;
-  border-color: #00abc1;
+.functieknoppen .functieknop[aria-expanded="true"] svg {
+  color: #00899b;
+}
+
+.functieknoppen .functieknop:focus-visible {
+  outline: 2px solid #00abc1;
+  outline-offset: -2px;
 }
 
 .functiemenu {
-  margin-top: 20px;
+  margin-top: 18px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #dfe5e2;
+  border-bottom: 1px solid #e5e7eb;
 }
 </style>

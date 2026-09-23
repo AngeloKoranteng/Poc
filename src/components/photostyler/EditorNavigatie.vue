@@ -11,7 +11,7 @@ const { panelen, actiefPaneel, kiesPaneel } = usePhotoStylerContext();
     aria-label="Editorgereedschappen"
   >
     <button
-      v-for="paneel in panelen"
+        v-for="paneel in panelen.filter( item => !['tekenen', 'tekst'].includes(item.id))"
       :key="paneel.id"
       type="button"
       :class="{ actief: actiefPaneel === paneel.id }"

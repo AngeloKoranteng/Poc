@@ -22,6 +22,8 @@ const {
   fileName,
   canvasKlaar,
   achtergrondBestandsnaam,
+  achtergrondVoorbeeld,
+  achtergrondIngesteld,
   kiesPaneel,
   bestandInput,
 } = usePhotoStylerContext();
@@ -75,8 +77,9 @@ const {
             @lostpointercapture="stopTekenen"
           />
           <div
-              v-if="!fileName && !achtergrondBestandsnaam && !canvasTekstActief && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
+              v-if="!achtergrondIngesteld && !fileName && !achtergrondBestandsnaam && !canvasTekstActief && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
             class="leeg-canvas"
+            :style="{ background: achtergrondVoorbeeld }"
           >
             <div
               class="leeg-icoon"
@@ -128,8 +131,8 @@ const {
           </p>
           <ul class="lagenlijst">
             <li
-              v-for="laag in lagen"
-              :key="laag.id"
+                v-for="laag in lagen.filter(laag => laag.id !== 'tekst')"
+                :key="laag.id"
               class="laagrij"
               :class="{
                 geselecteerd: laag.aanwezig && geselecteerdeLaag === laag.id,

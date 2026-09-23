@@ -15,6 +15,7 @@ export function usePhotoStyler() {
 
   const achtergrondBestandsnaam = ref("");
   const achtergrondDonkerte = ref(0);
+  const achtergrondIngesteld = ref(false);
   let achtergrondSprite = null;
   let achtergrondUploadId = 0;
 
@@ -300,6 +301,7 @@ export function usePhotoStyler() {
       schaalY: fotoSprite?.scale.y ?? null,
       hoek: fotoSprite?.angle ?? 0,
       achtergrondDonkerte: achtergrondDonkerte.value,
+      achtergrondIngesteld: achtergrondIngesteld.value,
       belichtingen: { ...belichtingen.value },
       belichtingAchtergrondUploadId: achtergrondUploadId,
       rood: rood.value,
@@ -353,6 +355,57 @@ export function usePhotoStyler() {
     }
     kleurBegin = null;
   }
+
+  // Een kleurkeuze schakelt de canvasachtergrond van foto naar effen kleur.
+  // De foto blijft als verborgen laag bewaard, ook voor Ongedaan maken.
+  function kiesAchtergrondKleur(kleur, doorlopend = false) {
+    if (!canvasKlaar.value || inspectorsVergrendeld.value) return;
+
+    const hex = String(kleur).trim().toLowerCase();
+
+    if (!/^#[0-9a-f]{6}$/.test(hex)) return;
+
+    const kanalen = [1, 3, 5].map((begin) =>
+        parseInt(hex.slice(begin, begin + 2), 16)
+    );
+
+    const kleurVeranderd = kanalen.some(
+        (waarde, index) =>
+            waarde !== achtergrondKanalen[index].waarde.value
+    );
+
+    if (!kleurVeranderd && achtergrondIngesteld.value) return;
+
+    if (!doorlopend) {
+      stopKleurWijziging();
+    }
+
+    startKleurWijziging();
+
+    achtergrondIngesteld.value = true;
+
+    // Als er een achtergrondfoto is, verberg die.
+    const achtergrondLaag = lagen.value.find(
+        (laag) => laag.id === "achtergrond"
+    );
+
+    if (achtergrondSprite && achtergrondLaag) {
+      achtergrondLaag.zichtbaar = false;
+    }
+
+    // RGB aanpassen.
+    rood.value = kanalen[0];
+    groen.value = kanalen[1];
+    blauw.value = kanalen[2];
+
+    // De watch([rood, groen, blauw]) zorgt vervolgens
+    // automatisch voor het opnieuw tekenen van de canvas.
+
+    if (!doorlopend) {
+      stopKleurWijziging();
+    }
+  }
+
 
   // Herstelt de vorige afbeelding, kleuren en verflaag.
   function ongedaanMaken() {
@@ -409,6 +462,7 @@ export function usePhotoStyler() {
                 : belichtingen.value.achtergrond,
       };
       achtergrondDonkerte.value = vorige.achtergrondDonkerte ?? 0;
+      achtergrondIngesteld.value = vorige.achtergrondIngesteld ?? false;
       rood.value = vorige.rood;
       groen.value = vorige.groen;
       blauw.value = vorige.blauw;
@@ -511,7 +565,7 @@ export function usePhotoStyler() {
     werkFotoKaderBij();
     app.render();
   }
-  // Zet browserco?rdinaten om naar het formaat van het Pixi-canvas.
+
   function resizePunt(event) {
     const rechthoek = app.canvas.getBoundingClientRect();
     return {
@@ -1171,7 +1225,7 @@ export function usePhotoStyler() {
   function downloadFoto() {
     stopResize();
     stopCanvasTekst();
-    if (!canvasKlaar.value || (!fotoSprite && !achtergrondSprite && !getTekstObject())) return;
+    if (!canvasKlaar.value || (!achtergrondIngesteld.value && !fotoSprite && !achtergrondSprite && !getTekstObject())) return;
 
     stopTekenen();
     const kaderWasZichtbaar = fotoKader.visible;
@@ -1269,6 +1323,7 @@ export function usePhotoStyler() {
     () => {
       if (!canvasKlaar.value || bezigMetHerstellen) return;
 
+      achtergrondIngesteld.value = true;
       app.renderer.background.color = achtergrondKleur();
       renderCanvas();
     },
@@ -1320,6 +1375,7 @@ export function usePhotoStyler() {
     wisselLaagVergrendeling,
     plaatsLogo,
     achtergrondDonkerte,
+    achtergrondIngesteld,
     achtergrondBestandsnaam,
     uploadAchtergrond,
     fileName,
@@ -1349,6 +1405,7 @@ export function usePhotoStyler() {
     resetBelichting,
     achtergrondVoorbeeld,
     achtergrondKanalen,
+    kiesAchtergrondKleur,
     foutmelding,
     canvasHost,
     verfCanvas,
