@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { SourceTextModule, SyntheticModule, createContext } from "node:vm";
-import { ref, computed, watch, effectScope } from "vue";
+import { markRaw, ref, computed, watch, effectScope } from "vue";
 import { getPlainText, parseTaggedText, TextStyle } from "pixi.js";
 
 function zichtbareTekst(object) {
@@ -103,6 +103,9 @@ class Graphics extends DisplayObject {
   stroke() {
     return this;
   }
+  arc() {
+    return this;
+  }
   circle() {
     return this;
   }
@@ -131,7 +134,7 @@ class Text extends DisplayObject {
   }
 }
 
-async function setup() {
+async function setup({ opslag = {}, leeg = false } = {}) {
   const mounted = [],
     unmounted = [];
   const window = new EventTarget();
@@ -205,7 +208,15 @@ async function setup() {
     } },
   });
   const sources = {
+    [new URL("../src/composables/photostyler/conceptOpslag.js", import.meta.url).href]: {
+      conceptTransactie: async (actie, concept) => {
+        if (opslag.fout) throw new Error("Opslag niet beschikbaar");
+        if (actie === "lezen") return opslag.concept ? structuredClone(opslag.concept) : undefined;
+        opslag.concept = structuredClone(concept);
+      },
+    },
     vue: {
+      markRaw,
       ref,
       computed,
       watch,
@@ -267,16 +278,22 @@ async function setup() {
   editor.verfCanvas.value = {
     width: 800,
     height: 500,
-    getContext: () => ({ clearRect() {} }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 500 }),
+    setPointerCapture() {},
+    hasPointerCapture: () => false,
+    getContext: () => ({ clearRect() {}, beginPath() {}, arc() {}, fill() {},
+      moveTo() {}, lineTo() {}, stroke() {} }),
   };
   await mounted[0]();
-  await editor.uploadFoto({
+  if (!leeg) await editor.uploadFoto({
     target: { files: [{ name: "foto.png" }], value: "" },
   });
   const photo = app.stage.children.find((child) => child instanceof Sprite);
   const frame = app.stage.children.find((child) => child instanceof Graphics);
-  editor.tekstFormulier.value.inhoud = "Onze club";
-  editor.pasTekstToe();
+  if (!leeg) {
+    editor.tekstFormulier.value.inhoud = "Onze club";
+    editor.pasTekstToe();
+  }
   const text = app.stage.children.find((child) => child instanceof Text);
   const pointer = (x, y, pointerId = 1) => ({
     pointerId,
@@ -431,7 +448,7 @@ test("download includes text without handles, and replacing the photo preserves 
     assert.equal(h.editor.tekstFormulier.value.inhoud, "Onze club");
     const logo = h.app.stage.children.find(child => child instanceof Sprite);
     assert.ok(h.app.stage.children.indexOf(h.text) > h.app.stage.children.indexOf(logo));
-    assert.equal(h.editor.geschiedenis.value.length, 0);
+    assert.equal(h.editor.geschiedenis.value.length, 3);
     h.editor.tekstFormulier.value.inhoud = "Opnieuw";
     h.editor.pasTekstToe();
     assert.ok(h.app.stage.children.some((child) => child instanceof Text));
@@ -713,7 +730,8 @@ test("exposure is separate per image and resets and releases resources on replac
     assert.equal(h.editor.belichtingWaarde.value, 0);
     assert.equal(oudeTexture.destroyed, true);
     h.editor.ongedaanMaken();
-    assert.equal(h.editor.belichtingWaarde.value, 0);
+    assert.equal(h.editor.belichtingWaarde.value, -1);
+    assert.equal(h.editor.achtergrondBestandsnaam.value, "bg.png");
     await h.editor.uploadFoto({ target: { files: [{ name: 'new.png' }], value: '' } });
     assert.equal(oudeFotoTexture.destroyed, true);
     assert.equal(h.editor.belichtingWaarde.value, 0);
@@ -793,5 +811,186 @@ test("a solid background is a downloadable design without an image and undo rest
     assert.equal(h.editor.achtergrondIngesteld.value, true);
     h.editor.ongedaanMaken();
     assert.equal(h.editor.achtergrondIngesteld.value, false);
+  } finally { h.close(); }
+});
+
+
+test("saved draft restores editable images, text, layer flags and colors after remount", async () => {
+  const opslag = {};
+  const first = await setup({ opslag });
+  await first.editor.uploadAchtergrond({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
+  first.editor.selecteerLaag("afbeelding");
+  first.editor.draaiFoto(30);
+  first.editor.veranderBelichting(1);
+  first.editor.kiesAchtergrondKleur("#123456");
+  first.editor.wisselLaagVergrendeling("afbeelding");
+  first.editor.tekenModus.value = true;
+  first.editor.startTekenen({ ...first.pointer(20, 30), isPrimary: true });
+  first.editor.tijdensTekenen(first.pointer(50, 60));
+  first.editor.stopTekenen();
+  await first.editor.slaConceptOp();
+  assert.equal(opslag.concept.verfstreken[0].punten.length, 2);
+  assert.match(first.editor.conceptMelding.value, /opgeslagen/);
+  first.close();
+  const second = await setup({ opslag, leeg: true });
+  try {
+    assert.equal(second.editor.fileName.value, "foto.png");
+    assert.equal(second.editor.achtergrondBestandsnaam.value, "achtergrond.png");
+    assert.equal(second.editor.tekstFormulier.value.inhoud, "Onze club");
+    assert.equal(second.editor.achtergrondVoorbeeld.value, "rgb(18, 52, 86)");
+    const photo = second.app.stage.children.find(child => child instanceof Sprite && child.angle > 0);
+    near(photo.angle, 30);
+    assert.equal(second.editor.lagen.value.find(laag => laag.id === "afbeelding").vergrendeld, true);
+    assert.equal(second.editor.lagen.value.find(laag => laag.id === "achtergrond").zichtbaar, false);
+    assert.equal(second.editor.geschiedenis.value.length, 0);
+    second.editor.wisselLaagVergrendeling("afbeelding");
+    second.editor.selecteerLaag("afbeelding");
+    second.editor.draaiFoto(15);
+    near(photo.angle, 45);
+    await second.editor.slaConceptOp();
+    assert.equal(opslag.concept.verfstreken[0].punten[1].x, 50);
+  } finally { second.close(); }
+});
+
+test("failed save keeps the previous draft and reports failure", async () => {
+  const opslag = {};
+  const h = await setup({ opslag });
+  try {
+    await h.editor.slaConceptOp();
+    const vorige = opslag.concept;
+    opslag.fout = true;
+    h.editor.kiesAchtergrondKleur("#abcdef");
+    await h.editor.slaConceptOp();
+    assert.equal(opslag.concept, vorige);
+    assert.match(h.editor.conceptMelding.value, /Opslaan mislukt/);
+    assert.equal(h.editor.conceptBezig.value, false);
+  } finally { h.close(); }
+});
+
+
+test("saving an empty design replaces the prior draft", async () => {
+  const opslag = {};
+  const h = await setup({ opslag });
+  await h.editor.slaConceptOp();
+  h.editor.verwijderLaag("tekst");
+  h.editor.verwijderLaag("afbeelding");
+  await h.editor.slaConceptOp();
+  h.close();
+  const next = await setup({ opslag, leeg: true });
+  try {
+    assert.equal(next.editor.fileName.value, "");
+    assert.equal(next.editor.lagen.value.some(laag => laag.aanwezig), false);
+    assert.equal(next.editor.achtergrondIngesteld.value, false);
+  } finally { next.close(); }
+});
+
+test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
+  const h = await setup();
+  let prevented = 0;
+  try {
+    h.editor.selecteerLaag("afbeelding");
+    h.editor.draaiFoto(30);
+    h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault() { prevented++; } });
+    near(h.photo.angle, 0);
+    h.editor.draaiFoto(60);
+    h.window.emit("keydown", { key: "z", metaKey: true, preventDefault() { prevented++; } });
+    near(h.photo.angle, 0);
+    h.editor.draaiFoto(90);
+    h.editor.ongedaanMaken();
+    near(h.photo.angle, 0);
+    assert.equal(prevented, 2);
+    assert.equal(h.editor.opnieuwToe, undefined);
+  } finally { h.close(); }
+  assert.equal(h.window.handlers.get("keydown").size, 0);
+});
+
+test("undo shortcut finishes a slider change but respects text input and other shortcuts", async () => {
+  const h = await setup();
+  try {
+    h.editor.kiesAchtergrondKleur("#ff0000", true);
+    const range = { type: "range", closest(selector) { return selector === "input" ? this : null; } };
+    h.window.emit("keydown", { key: "z", ctrlKey: true, target: range, preventDefault() {} });
+    assert.equal(h.editor.achtergrondVoorbeeld.value, "rgb(230, 230, 230)");
+    h.editor.selecteerLaag("afbeelding");
+    h.editor.draaiFoto(30);
+    const tekst = { type: "text", closest(selector) { return selector === "input" ? this : null; } };
+    const verboden = () => assert.fail("Text undo and unrelated keys must not be intercepted");
+    for (const extra of [
+      { target: tekst }, { target: { isContentEditable: true } },
+      { shiftKey: true }, { altKey: true }, { isComposing: true },
+      { defaultPrevented: true }, { key: "y" },
+    ]) {
+      h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault: verboden, ...extra });
+      near(h.photo.angle, 30);
+    }
+  } finally { h.close(); }
+});
+
+
+test("first upload is removed by the button, Ctrl+Z or Cmd+Z, including file input focus", async () => {
+  for (const actie of ["button", "ctrlKey", "metaKey"]) {
+    const h = await setup({ leeg: true });
+    try {
+      await h.editor.uploadFoto({ target: { files: [{ name: "logo.png" }], value: "" } });
+      assert.equal(h.editor.geschiedenis.value.length, 1);
+      assert.equal(h.editor.fileName.value, "logo.png");
+      if (actie === "button") h.editor.ongedaanMaken();
+      else {
+        const input = { type: "file", closest(selector) { return selector === "input" ? this : null; } };
+        h.window.emit("keydown", { key: "z", [actie]: true, target: input, preventDefault() {} });
+      }
+      assert.equal(h.editor.fileName.value, "");
+      assert.equal(h.editor.lagen.value.find(l => l.id === "afbeelding").aanwezig, false);
+      assert.equal(h.app.stage.children.some(c => c instanceof Sprite), false);
+      assert.equal(h.editor.geschiedenis.value.length, 0);
+    } finally { h.close(); }
+  }
+});
+
+test("undo replacement and deletion restores original image, transform, exposure and earlier history", async () => {
+  const h = await setup({ leeg: true });
+  try {
+    await h.editor.uploadFoto({ target: { files: [{ name: "original.png" }], value: "" } });
+    h.editor.selecteerLaag("afbeelding");
+    h.editor.draaiFoto(45);
+    h.editor.veranderBelichting(1);
+    h.editor.stopKleurWijziging();
+    await h.editor.uploadFoto({ target: { files: [{ name: "replacement.png" }], value: "" } });
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.fileName.value, "original.png");
+    let restored = h.app.stage.children.find(c => c instanceof Sprite);
+    near(restored.angle, 45);
+    assert.equal(h.editor.belichtingWaarde.value, 1);
+    h.editor.verwijderLaag("afbeelding");
+    assert.equal(h.editor.fileName.value, "");
+    h.editor.ongedaanMaken();
+    restored = h.app.stage.children.find(c => c instanceof Sprite);
+    near(restored.angle, 45);
+    h.editor.selecteerLaag("afbeelding");
+    assert.equal(h.editor.belichtingWaarde.value, 1);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.belichtingWaarde.value, 0);
+    h.editor.ongedaanMaken();
+    near(restored.angle, 0);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.fileName.value, "");
+  } finally { h.close(); }
+});
+
+test("background upload and removal are undoable without affecting the logo", async () => {
+  const h = await setup();
+  try {
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: "background.png" }], value: "" } });
+    const background = h.app.stage.children[0];
+    background.position.set(380, 240);
+    h.editor.verwijderLaag("achtergrond");
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.achtergrondBestandsnaam.value, "background.png");
+    near(h.app.stage.children[0].x, 380);
+    near(h.app.stage.children[0].y, 240);
+    h.editor.ongedaanMaken();
+    assert.equal(h.editor.achtergrondBestandsnaam.value, "");
+    assert.ok(h.app.stage.children.includes(h.photo));
+    assert.ok(h.app.stage.children.includes(h.text));
   } finally { h.close(); }
 });

@@ -1,9 +1,10 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { markRaw, computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Application, Graphics, Sprite, Texture, Rectangle } from "pixi.js";
 import { panelen, kwastPalet } from "./config.js";
 import { useKleuren } from "./useKleuren.js";
 import { useVerflaag } from "./useVerflaag.js";
 import { useTekst } from "./useTekst.js";
+import { conceptTransactie } from "./conceptOpslag.js";
 import { useBelichting } from "./useBelichting.js";
 
 export function usePhotoStyler() {
@@ -11,6 +12,12 @@ export function usePhotoStyler() {
   const canvasHost = ref(null);
   const verfCanvas = ref(null);
   const bestandInput = ref(null);
+  const conceptBezig = ref(false);
+  const conceptMelding = ref("");
+  let fotoBron = null;
+  let achtergrondBron = null;
+  let fotoBestand = null;
+  let achtergrondBestand = null;
 
 
   const achtergrondBestandsnaam = ref("");
@@ -108,6 +115,15 @@ export function usePhotoStyler() {
 
     renderCanvas();
   }
+
+  function rondBewerkingAf() {
+    stopResize();
+    stopSlepen();
+    stopTekenen();
+    stopKleurWijziging();
+    stopCanvasTekst();
+  }
+
 
   function resetBelichting() {
     veranderBelichting(0);
@@ -294,6 +310,8 @@ export function usePhotoStyler() {
   // Leest positie, schaal, kleuren en het aantal verfstreken.
   function huidigeToestand() {
     return {
+      bronnen: { foto: fotoBron, achtergrond: achtergrondBron },
+      selectie: geselecteerdType,
       x: fotoSprite?.x ?? null,
       y: fotoSprite?.y ?? null,
       // Bewaart breedte en hoogte afzonderlijk voor Ongedaan maken.
@@ -317,6 +335,8 @@ export function usePhotoStyler() {
 
       achtergrondPositie: achtergrondSprite
           ? {
+            schaalX: achtergrondSprite.scale.x,
+            schaalY: achtergrondSprite.scale.y,
             x: achtergrondSprite.x,
             y: achtergrondSprite.y,
             uploadId: achtergrondUploadId,
@@ -332,6 +352,7 @@ export function usePhotoStyler() {
   // Bewaart een toestand voor Ongedaan maken.
   function bewaarToestand(toestand = huidigeToestand()) {
     if (bezigMetHerstellen || !canvasKlaar.value) return;
+
 
     geschiedenis.value.push(toestand);
   }
@@ -374,7 +395,13 @@ export function usePhotoStyler() {
             waarde !== achtergrondKanalen[index].waarde.value
     );
 
-    if (!kleurVeranderd && achtergrondIngesteld.value) return;
+    const zichtbareAchtergrond = achtergrondSprite && lagen.value.find(
+      (laag) => laag.id === "achtergrond",
+    )?.zichtbaar;
+    if (!kleurVeranderd && achtergrondIngesteld.value && !zichtbareAchtergrond) {
+      if (!doorlopend) stopKleurWijziging();
+      return;
+    }
 
     if (!doorlopend) {
       stopKleurWijziging();
@@ -398,6 +425,8 @@ export function usePhotoStyler() {
     groen.value = kanalen[1];
     blauw.value = kanalen[2];
 
+    renderCanvas();
+
     // De watch([rood, groen, blauw]) zorgt vervolgens
     // automatisch voor het opnieuw tekenen van de canvas.
 
@@ -409,20 +438,65 @@ export function usePhotoStyler() {
 
   // Herstelt de vorige afbeelding, kleuren en verflaag.
   function ongedaanMaken() {
-    stopResize();
-    if (!canvasKlaar.value || geschiedenis.value.length === 0) return;
-
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
-
+    if (!canvasKlaar.value || conceptBezig.value) return;
+    rondBewerkingAf();
     const vorige = geschiedenis.value.pop();
     if (!vorige) return;
+    uploadId++;
+    achtergrondUploadId++;
+    herstelToestand(vorige);
+  }
 
+  // Bewaar gedecodeerde bronnen in de historie, zodat herstel direct werkt.
+  function herstelBronnen(bronnen) {
+    for (const id of ["achtergrond", "afbeelding"]) {
+      const achtergrond = id === "achtergrond";
+      const bron = achtergrond ? bronnen.achtergrond : bronnen.foto;
+      if (bron === (achtergrond ? achtergrondBron : fotoBron)) continue;
+      const oud = achtergrond ? achtergrondSprite : fotoSprite;
+      belichtingsBewerking.verwijder(id);
+      if (oud) {
+        app.stage.removeChild(oud);
+        oud.destroy({ texture: true, textureSource: true });
+      }
+      let sprite = null;
+      if (bron) {
+        sprite = new Sprite(Texture.from(bron.afbeelding));
+        sprite.anchor.set(0.5);
+        sprite.eventMode = "static";
+        sprite.cursor = "grab";
+        sprite.on("pointerdown", (event) => startSlepen(event, sprite));
+        belichtingsBewerking.registreer(id, sprite, bron.afbeelding);
+        if (achtergrond) app.stage.addChildAt(sprite, 0);
+        else app.stage.addChild(sprite);
+      }
+      if (achtergrond) {
+        achtergrondSprite = sprite;
+        achtergrondBron = bron;
+        achtergrondBestand = bron?.bestand ?? null;
+        achtergrondBestandsnaam.value = bron?.bestand.name ?? "";
+      } else {
+        fotoSprite = sprite;
+        fotoBron = bron;
+        fotoBestand = bron?.bestand ?? null;
+        fileName.value = bron?.bestand.name ?? "";
+      }
+    }
+    if (getTekstObject()) app.stage.addChild(getTekstObject());
+    app.stage.addChild(fotoKader);
+  }
+
+  function herstelToestand(vorige) {
     bezigMetHerstellen = true;
 
     try {
-      herstelVerflaag(vorige.aantalVerfstreken);
+      if (vorige.bronnen) herstelBronnen(vorige.bronnen);
+      geselecteerdType = vorige.selectie ?? geselecteerdType;
+      if (vorige.verfstreken) {
+        laadVerfstreken(vorige.verfstreken);
+      } else {
+        herstelVerflaag(vorige.aantalVerfstreken);
+      }
       herstelTekst(vorige.tekst ?? null);
 
       for (const laag of lagen.value) {
@@ -447,8 +521,9 @@ export function usePhotoStyler() {
       if (
           achtergrondSprite &&
           achtergrondPositie &&
-          achtergrondPositie.uploadId === achtergrondUploadId
+          (vorige.bronnen || achtergrondPositie.uploadId === achtergrondUploadId)
       ) {
+        if (achtergrondPositie.schaalX != null) achtergrondSprite.scale.set(achtergrondPositie.schaalX, achtergrondPositie.schaalY);
         achtergrondSprite.position.set(
             achtergrondPositie.x,
             achtergrondPositie.y,
@@ -457,7 +532,7 @@ export function usePhotoStyler() {
       belichtingen.value = {
         afbeelding: vorige.belichtingen?.afbeelding ?? 0,
         achtergrond:
-            vorige.belichtingAchtergrondUploadId === achtergrondUploadId
+            (vorige.bronnen || vorige.belichtingAchtergrondUploadId === achtergrondUploadId)
                 ? vorige.belichtingen?.achtergrond ?? 0
                 : belichtingen.value.achtergrond,
       };
@@ -467,10 +542,78 @@ export function usePhotoStyler() {
       groen.value = vorige.groen;
       blauw.value = vorige.blauw;
 
+      pasAchtergrondDonkerteToe();
       app.renderer.background.color = achtergrondKleur();
       renderCanvas();
     } finally {
       bezigMetHerstellen = false;
+    }
+  }
+
+
+  // Bewaart bronbestanden, bewerkingen en verf; geen afgeplatte PNG.
+  async function slaConceptOp() {
+    if (!canvasKlaar.value || conceptBezig.value) return;
+    stopResize();
+    stopSlepen();
+    stopTekenen();
+    stopKleurWijziging();
+    stopCanvasTekst();
+    conceptBezig.value = true;
+    conceptMelding.value = "Concept opslaan…";
+    try {
+      console.info("[Concept · editor] Verzamel de originele uploadbestanden en de huidige bewerkingen.");
+      const { bronnen, ...toestand } = huidigeToestand();
+      const concept = {
+        versie: 1,
+        toestand: JSON.parse(JSON.stringify(toestand)),
+        foto: fotoBestand,
+        achtergrond: achtergrondBestand,
+        verfstreken: leesVerfstreken(),
+      };
+      await conceptTransactie("schrijven", concept);
+      conceptMelding.value = "Concept opgeslagen in deze browser. Nieuwe wijzigingen opnieuw opslaan.";
+    } catch {
+      conceptMelding.value = "Opslaan mislukt. Controleer de beschikbare browseropslag en probeer opnieuw.";
+    } finally {
+      conceptBezig.value = false;
+    }
+  }
+
+  async function laadConcept() {
+    conceptBezig.value = true;
+    try {
+      const concept = await conceptTransactie("lezen");
+      if (!concept || unmounted) return;
+      if (concept.versie !== 1 || !concept.toestand || !Array.isArray(concept.verfstreken)) {
+        throw new Error("Onbekend conceptformaat");
+      }
+      const uploadEvent = (bestand) => ({ target: { files: [bestand], value: "" } });
+      if (concept.achtergrond) {
+        console.info("[Concept · herstel] Achtergrondbestand uit IndexedDB opnieuw laden:", concept.achtergrond.name);
+        await uploadAchtergrond(uploadEvent(concept.achtergrond));
+        if (unmounted) return;
+        if (!achtergrondSprite) throw new Error("Achtergrond herstellen mislukt");
+      }
+      if (concept.foto) {
+        console.info("[Concept · herstel] Fotobestand uit IndexedDB opnieuw laden:", concept.foto.name);
+        await uploadFoto(uploadEvent(concept.foto));
+        if (unmounted) return;
+        if (!fotoSprite) throw new Error("Foto herstellen mislukt");
+      }
+      const toestand = concept.toestand;
+      toestand.belichtingAchtergrondUploadId = achtergrondUploadId;
+      if (toestand.achtergrondPositie) toestand.achtergrondPositie.uploadId = achtergrondUploadId;
+      console.info("[Concept · herstel] Pas verfstreken, tekst, kleuren, belichting en posities toe.");
+      laadVerfstreken(concept.verfstreken);
+      herstelToestand(toestand);
+      geschiedenis.value = [];
+      console.info("[Concept · herstel] Klaar: het concept is weer bewerkbaar op het canvas.");
+      conceptMelding.value = "Opgeslagen concept hersteld. Nieuwe wijzigingen bewaren met Concept opslaan.";
+    } catch {
+      conceptMelding.value = "Het concept kon niet worden geladen. Uw opgeslagen concept is niet overschreven.";
+    } finally {
+      conceptBezig.value = false;
     }
   }
 
@@ -878,6 +1021,8 @@ export function usePhotoStyler() {
 
       if (unmounted || huidigeUpload !== achtergrondUploadId) return;
 
+      rondBewerkingAf();
+      bewaarToestand();
       const nieuweSprite = new Sprite(Texture.from(afbeelding));
 
       // Vult het canvas met behoud van de verhoudingen.
@@ -911,6 +1056,8 @@ export function usePhotoStyler() {
         });
       }
 
+      achtergrondBron = markRaw({ bestand, afbeelding });
+      achtergrondBestand = bestand;
       achtergrondSprite = nieuweSprite;
       belichtingsBewerking.registreer("achtergrond", achtergrondSprite, afbeelding);
       belichtingen.value.achtergrond = 0;
@@ -931,6 +1078,23 @@ export function usePhotoStyler() {
       URL.revokeObjectURL(objectUrl);
     }
   }
+
+  // Laat tekstvelden hun eigen undo houden; sliders gebruiken de editorhistorie.
+  function geschiedenisToets(event) {
+    if (!canvasKlaar.value || conceptBezig.value || event.defaultPrevented ||
+        event.isComposing || event.altKey || event.shiftKey ||
+        !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+
+    const doel = event.target;
+    const invoer = doel?.closest?.("input");
+    const tekstInvoer = invoer && !["range", "color", "checkbox", "radio", "button", "submit", "file"].includes(invoer.type);
+    if (canvasTekstActief.value || doel?.isContentEditable || tekstInvoer ||
+        doel?.closest?.('textarea, [role="textbox"]')) return;
+
+    event.preventDefault();
+    ongedaanMaken();
+  }
+
 
   // Laadt het logo en zet het passend in het midden.
   async function uploadFoto(event) {
@@ -957,6 +1121,8 @@ export function usePhotoStyler() {
       stopSlepen();
       stopTekenen();
       stopKleurWijziging();
+      stopCanvasTekst();
+      bewaarToestand();
       geselecteerdType = "afbeelding";
 
       if (fotoSprite) {
@@ -964,6 +1130,8 @@ export function usePhotoStyler() {
         app.stage.removeChild(fotoSprite);
         fotoSprite.destroy({ texture: true, textureSource: true });
       }
+      fotoBron = markRaw({ bestand: file, afbeelding });
+      fotoBestand = file;
       fileName.value = file.name;
 
       fotoSprite = new Sprite(texture);
@@ -988,7 +1156,6 @@ export function usePhotoStyler() {
       if (getTekstObject()) app.stage.addChild(getTekstObject());
       app.stage.addChild(fotoKader);
       kiesPaneel("uploads");
-      geschiedenis.value = [];
       sleepBegin = null;
       renderCanvas();
     } catch {
@@ -1001,7 +1168,7 @@ export function usePhotoStyler() {
     }
   }
 
-  // Verwijdert de afbeelding, verfstreken en bewerkingsgeschiedenis.
+  // Verwijdert de afbeelding als herstelbare bewerking.
   function verwijderFoto() {
     if (!canvasKlaar.value) return;
 
@@ -1018,12 +1185,17 @@ export function usePhotoStyler() {
     stopTekenen();
     stopKleurWijziging();
 
+    bewaarToestand();
     if (isAchtergrond) {
+      achtergrondBron = null;
       achtergrondUploadId++;
+      achtergrondBestand = null;
       achtergrondSprite = null;
       achtergrondBestandsnaam.value = "";
     } else {
+      fotoBron = null;
       uploadId++;
+      fotoBestand = null;
       fotoSprite = null;
       fileName.value = "";
     }
@@ -1036,8 +1208,7 @@ export function usePhotoStyler() {
       textureSource: true,
     });
 
-    // Oude geschiedenis verwijst mogelijk naar de verwijderde afbeelding.
-    geschiedenis.value = [];
+    // De bron blijft via de geschiedenis beschikbaar voor herstel.
     sleepBegin = null;
     kleurBegin = null;
     tekenModus.value = false;
@@ -1294,6 +1465,8 @@ export function usePhotoStyler() {
     stopTekenen,
     herstelVerflaag,
     aantalVerfstreken,
+    leesVerfstreken,
+    laadVerfstreken,
   } = useVerflaag({
     verfCanvas,
     tekenModus,
@@ -1358,6 +1531,8 @@ export function usePhotoStyler() {
   onMounted(async () => {
     try {
       await maakCanvas();
+      if (!unmounted) window.addEventListener('keydown', geschiedenisToets);
+      if (!unmounted) await laadConcept();
     } catch (error) {
       console.error("Foto-editor starten mislukt:", error);
       foutmelding.value = "De foto-editor kon niet starten. Ververs de pagina.";
@@ -1371,6 +1546,7 @@ export function usePhotoStyler() {
     achtergrondUploadId++;
     window.removeEventListener("pointermove", tijdensResize);
     window.removeEventListener("pointerup", stopResize);
+    window.removeEventListener('keydown', geschiedenisToets);
     window.removeEventListener("pointercancel", stopResize);
     window.removeEventListener("blur", stopResize);
     uploadId++;
@@ -1386,6 +1562,9 @@ export function usePhotoStyler() {
   });
 
   return {
+    slaConceptOp,
+    conceptBezig,
+    conceptMelding,
     canvasTekstActief,
     canvasTekstInvoer,
     canvasTekstOpmaak,

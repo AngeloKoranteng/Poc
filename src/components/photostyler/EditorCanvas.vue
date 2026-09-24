@@ -10,6 +10,8 @@ const {
   canvasHost,
   lagen,
     verwijderLaag,
+    conceptMelding,
+    conceptBezig,
   geselecteerdeLaag,
   selecteerLaag,
   wisselLaagZichtbaarheid,
@@ -52,7 +54,8 @@ const {
     >
       {{ foutmelding }}
     </p>
-    <div class="canvasgebied">
+    <p class="canvashint" role="status">{{ conceptMelding || "Bewaar uw ontwerp met Concept opslaan om later in deze browser verder te gaan." }}</p>
+    <div class="canvasgebied" :inert="conceptBezig">
       <div class="papier">
         <div class="papierkop">
           <span>01 <strong>Jouw clubontwerp</strong></span

@@ -99,7 +99,17 @@ export function useVerflaag({
     }
   }
 
-  return { startTekenen, tijdensTekenen, stopTekenen, herstelVerflaag,
+  function leesVerfstreken() {
+    return JSON.parse(JSON.stringify(verfstreken));
+  }
+
+  function laadVerfstreken(streken) {
+    stopTekenen();
+    verfstreken = JSON.parse(JSON.stringify(streken));
+    herstelVerflaag(verfstreken.length);
+  }
+
+  return { leesVerfstreken, laadVerfstreken, startTekenen, tijdensTekenen, stopTekenen, herstelVerflaag,
     aantalVerfstreken: () => verfstreken.length,
   };
 }

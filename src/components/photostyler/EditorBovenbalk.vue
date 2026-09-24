@@ -1,7 +1,7 @@
 <script setup>
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
-const { achtergrondIngesteld, lagen, fileName, achtergrondBestandsnaam, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerContext();
+const { canvasKlaar, conceptBezig, slaConceptOp, achtergrondIngesteld, lagen, fileName, achtergrondBestandsnaam, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -16,10 +16,16 @@ const { achtergrondIngesteld, lagen, fileName, achtergrondBestandsnaam, geschied
       <h1>{{ fileName || "Nieuw clubontwerp" }}</h1>
     </div>
     <div class="hoofdacties">
+      <button class="undo" type="button" :disabled="!canvasKlaar || conceptBezig"
+        title="Bewaar één bewerkbaar concept in deze browser" @click="slaConceptOp">
+        {{ conceptBezig ? "Even wachten…" : "Concept opslaan" }}
+      </button>
       <button
         class="undo"
         type="button"
         @click="ongedaanMaken"
+        title="Ongedaan maken (Ctrl+Z / Cmd+Z)"
+        aria-keyshortcuts="Control+Z Meta+Z"
         :disabled="geschiedenis.length === 0"
       >
         <svg
@@ -30,6 +36,7 @@ const { achtergrondIngesteld, lagen, fileName, achtergrondBestandsnaam, geschied
         </svg>
         <span>Ongedaan maken</span>
       </button>
+
       <button
         class="download"
         type="button"

@@ -11,12 +11,12 @@ import { usePhotoStyler } from "../composables/photostyler/usePhotoStyler.js";
 import { providePhotoStyler } from "../composables/photostyler/context.js";
 
 const editor = usePhotoStyler();
-const { inspectorsVergrendeld } = editor;
+const { inspectorsVergrendeld, conceptBezig } = editor;
 providePhotoStyler(editor);
 </script>
 
 <template>
-  <section class="editor">
+  <section class="editor" :inert="conceptBezig" :aria-busy="conceptBezig">
     <EditorBovenbalk />
 
     <div class="editorindeling">
