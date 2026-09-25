@@ -14,6 +14,15 @@ export function usePhotoStyler() {
   const bestandInput = ref(null);
   const conceptBezig = ref(false);
   const conceptMelding = ref("");
+  const conceptStatus = ref("info");
+
+  function markeerNietOpgeslagen(){
+    // Tijdens opslaan of het laden van een concept
+    if (conceptBezig.value) return;
+    conceptStatus.value = "gewijzigd";
+    conceptMelding.value = "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan."
+  }
+
   let fotoBron = null;
   let achtergrondBron = null;
   let fotoBestand = null;
@@ -355,6 +364,7 @@ export function usePhotoStyler() {
 
 
     geschiedenis.value.push(toestand);
+    markeerNietOpgeslagen();
   }
 
   // Onthoudt de toestand voordat een kleurslider verandert.
@@ -445,6 +455,7 @@ export function usePhotoStyler() {
     uploadId++;
     achtergrondUploadId++;
     herstelToestand(vorige);
+    markeerNietOpgeslagen();
   }
 
   // Bewaar gedecodeerde bronnen in de historie, zodat herstel direct werkt.
@@ -560,10 +571,11 @@ export function usePhotoStyler() {
     stopKleurWijziging();
     stopCanvasTekst();
     conceptBezig.value = true;
-    conceptMelding.value = "Concept opslaan…";
+    conceptStatus.value = "bezig";
+    conceptMelding.value = "Je ontwerp wordt opgeslagen. Even geduld…";
     try {
       console.info("[Concept · editor] Verzamel de originele uploadbestanden en de huidige bewerkingen.");
-      const { bronnen, ...toestand } = huidigeToestand();
+      const {bronnen, ...toestand} = huidigeToestand();
       const concept = {
         versie: 1,
         toestand: JSON.parse(JSON.stringify(toestand)),
@@ -572,8 +584,16 @@ export function usePhotoStyler() {
         verfstreken: leesVerfstreken(),
       };
       await conceptTransactie("schrijven", concept);
-      conceptMelding.value = "Concept opgeslagen in deze browser. Nieuwe wijzigingen opnieuw opslaan.";
+
+      const tijdstip = new Intl.DateTimeFormat("nl-NL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date());
+
+      conceptStatus.value = "opgeslagen";
+      conceptMelding.value = `Concept opgeslagen om ${tijdstip}. Je kunt later in deze browser verder werken.`;
     } catch {
+      conceptStatus.value = "fout";
       conceptMelding.value = "Opslaan mislukt. Controleer de beschikbare browseropslag en probeer opnieuw.";
     } finally {
       conceptBezig.value = false;
@@ -582,9 +602,16 @@ export function usePhotoStyler() {
 
   async function laadConcept() {
     conceptBezig.value = true;
+    conceptStatus.value = "bezig";
+    conceptMelding.value = "Je opgeslagen ontwerp wordt geladen. Even geduld…";
     try {
       const concept = await conceptTransactie("lezen");
-      if (!concept || unmounted) return;
+      if (unmounted) return;
+      if (!concept) {
+        conceptStatus.value = "info";
+        conceptMelding.value = "";
+        return;
+      }
       if (concept.versie !== 1 || !concept.toestand || !Array.isArray(concept.verfstreken)) {
         throw new Error("Onbekend conceptformaat");
       }
@@ -609,8 +636,10 @@ export function usePhotoStyler() {
       herstelToestand(toestand);
       geschiedenis.value = [];
       console.info("[Concept · herstel] Klaar: het concept is weer bewerkbaar op het canvas.");
+      conceptStatus.value = "opgeslagen";
       conceptMelding.value = "Opgeslagen concept hersteld. Nieuwe wijzigingen bewaren met Concept opslaan.";
     } catch {
+      conceptStatus.value = "fout";
       conceptMelding.value = "Het concept kon niet worden geladen. Uw opgeslagen concept is niet overschreven.";
     } finally {
       conceptBezig.value = false;
@@ -1565,6 +1594,7 @@ export function usePhotoStyler() {
     slaConceptOp,
     conceptBezig,
     conceptMelding,
+    conceptStatus,
     canvasTekstActief,
     canvasTekstInvoer,
     canvasTekstOpmaak,

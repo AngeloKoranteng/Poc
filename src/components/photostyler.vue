@@ -1,4 +1,5 @@
 <script setup>
+import ConceptStatus from "./photostyler/ConceptStatus.vue";
 import EditorBovenbalk from "./photostyler/EditorBovenbalk.vue";
 import EditorNavigatie from "./photostyler/EditorNavigatie.vue";
 import UploadPaneel from "./photostyler/UploadPaneel.vue";
@@ -16,10 +17,11 @@ providePhotoStyler(editor);
 </script>
 
 <template>
-  <section class="editor" :inert="conceptBezig" :aria-busy="conceptBezig">
-    <EditorBovenbalk />
+  <section class="editor">
+    <EditorBovenbalk :inert="conceptBezig" />
+    <ConceptStatus />
 
-    <div class="editorindeling">
+    <div class="editorindeling" :inert="conceptBezig" :aria-busy="conceptBezig">
       <EditorNavigatie />
 
       <aside
