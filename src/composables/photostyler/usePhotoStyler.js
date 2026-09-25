@@ -28,6 +28,25 @@ export function usePhotoStyler() {
   let fotoBestand = null;
   let achtergrondBestand = null;
 
+  // Houd de preview-URL geldig zolang het bijbehorende bestand gebruikt wordt.
+  function maakUploadVoorbeeld() {
+    const url = ref("");
+    let huidigBestand = null;
+
+    function werkBij(bestand) {
+      if (bestand === huidigBestand) return;
+      const volgendeUrl = bestand ? URL.createObjectURL(bestand) : "";
+      if (url.value) URL.revokeObjectURL(url.value);
+      huidigBestand = bestand;
+      url.value = volgendeUrl;
+    }
+
+    return { url, werkBij };
+  }
+
+  const logoVoorbeeld = maakUploadVoorbeeld();
+  const achtergrondUploadVoorbeeld = maakUploadVoorbeeld();
+
 
   const achtergrondBestandsnaam = ref("");
   const achtergrondDonkerte = ref(0);
@@ -58,6 +77,7 @@ export function usePhotoStyler() {
   // Pixi-editor en de afbeelding op het canvas.
   let app;
   let fotoSprite;
+
   let fotoKader;
   // Bepaalt welk object met de grepen wordt bewerkt.
   let geselecteerdType = "afbeelding";
@@ -510,6 +530,7 @@ export function usePhotoStyler() {
       }
       herstelTekst(vorige.tekst ?? null);
 
+
       for (const laag of lagen.value) {
         const vorigeLaag = vorige.lagen?.find(
             (item) => item.id === laag.id
@@ -782,9 +803,13 @@ async function nieuwOntwerp(){
     draaiGreep.position.set(0, draaiY);
   }
 
+
   // Werkt het kader bij voordat het canvas opnieuw wordt getekend.
   function renderCanvas() {
     if (!app || !canvasKlaar.value) return;
+
+    logoVoorbeeld.werkBij(fotoBestand);
+    achtergrondUploadVoorbeeld.werkBij(achtergrondBestand);
 
     pasBelichtingToe("afbeelding");
     pasBelichtingToe("achtergrond");
@@ -1588,6 +1613,15 @@ async function nieuwOntwerp(){
     { flush: "sync" },
   );
 
+  // Vue kan de canvascomponent opnieuw opbouwen terwijl de editor blijft bestaan.
+  // Koppel het bestaande Pixi-canvas dan aan de nieuwe host en herstel de verflaag.
+  watch([canvasHost, verfCanvas], ([host, verf], [vorigeHost, vorigeVerf]) => {
+    if (unmounted || !canvasKlaar.value || !host || !verf) return;
+    if (host !== vorigeHost) host.appendChild(app.canvas);
+    if (verf !== vorigeVerf) herstelVerflaag(aantalVerfstreken());
+    renderCanvas();
+  }, { flush: "post" });
+
   // Start de editor zodra de pagina gereed is.
   onMounted(async () => {
     try {
@@ -1614,6 +1648,8 @@ async function nieuwOntwerp(){
     stopTekenen();
 
     belichtingsBewerking.ruimOp();
+    logoVoorbeeld.werkBij(null);
+    achtergrondUploadVoorbeeld.werkBij(null);
     if (canvasKlaar.value) {
       app.canvas.removeEventListener("wheel", zoomMetMuis);
       app.canvas.removeEventListener("lostpointercapture", stopResize);
@@ -1624,6 +1660,8 @@ async function nieuwOntwerp(){
 
   return {
     conceptBezig,
+    logoVoorbeeldUrl: logoVoorbeeld.url,
+    achtergrondUploadVoorbeeldUrl: achtergrondUploadVoorbeeld.url,
     conceptMelding,
     conceptStatus,
     canvasTekstActief,
@@ -1654,7 +1692,6 @@ async function nieuwOntwerp(){
     uploadFoto,
     veranderSchaal,
     draaiFoto,
-
     startKleurWijziging,
     stopKleurWijziging,
     verwijderFoto,

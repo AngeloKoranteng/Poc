@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { SourceTextModule, SyntheticModule, createContext } from "node:vm";
-import { markRaw, ref, computed, watch, effectScope } from "vue";
+import { markRaw, ref, computed, watch, effectScope, nextTick } from "vue";
 import { getPlainText, parseTaggedText, TextStyle } from "pixi.js";
 
 function zichtbareTekst(object) {
@@ -38,6 +38,7 @@ class DisplayObject extends EventTarget {
       this.scale.x = x;
       this.scale.y = y;
     },
+    copyFrom: (p) => { this.scale.set(p.x, p.y); },
   };
   position = {
     set: (x, y) => {
@@ -56,7 +57,9 @@ class DisplayObject extends EventTarget {
     },
     owner: this,
   };
-  anchor = { set() {} };
+  anchor = { x: 0, y: 0, set(x, y = x) { this.x = x; this.y = y; } };
+  pivot = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y; } };
+  skew = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y; } };
   get angle() {
     return (this.rotation * 180) / Math.PI;
   }
@@ -94,6 +97,9 @@ class DisplayObject extends EventTarget {
   }
 }
 class Graphics extends DisplayObject {
+  roundRect() {
+    return this;
+  }
   rect() {
     return this;
   }
@@ -135,6 +141,8 @@ class Text extends DisplayObject {
 }
 
 async function setup({ opslag = {}, leeg = false } = {}) {
+  const previewBestanden = new Map();
+  let urlNummer = 0;
   const mounted = [],
     unmounted = [];
   const window = new EventTarget();
@@ -194,7 +202,14 @@ async function setup({ opslag = {}, leeg = false } = {}) {
     Image: class {
       async decode() {}
     },
-    URL: { createObjectURL: () => "blob:test", revokeObjectURL() {} },
+    URL: {
+      createObjectURL(bestand) {
+        const url = `blob:test-${++urlNummer}`;
+        previewBestanden.set(url, bestand);
+        return url;
+      },
+      revokeObjectURL(url) { previewBestanden.delete(url); },
+    },
     document: { createElement: (tag) => {
       if (tag !== "canvas") return { click() {} };
       const canvas = { width: 2, height: 1 };
@@ -230,6 +245,7 @@ async function setup({ opslag = {}, leeg = false } = {}) {
       Text,
       Rectangle: class {},
       Texture: { from: (resource) => ({
+        orig: { width: 400, height: 250 },
         width: 2,
         height: 1,
         source: { resource, update() {}, unload() {} },
@@ -306,6 +322,7 @@ async function setup({ opslag = {}, leeg = false } = {}) {
   });
   return {
     editor,
+    previewBestanden,
     app,
     photo,
     text,
@@ -321,6 +338,75 @@ async function setup({ opslag = {}, leeg = false } = {}) {
 
 const near = (actual, expected) =>
   assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
+
+test("remounting the canvas view reconnects the renderer and restores paint without losing uploads", async () => {
+  const h = await setup();
+  try {
+    await h.editor.uploadAchtergrond({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
+    h.editor.wisselKwast();
+    h.editor.startTekenen({ ...h.pointer(20, 30), isPrimary: true });
+    h.editor.stopTekenen();
+    const geschiedenis = h.editor.geschiedenis.value.length;
+    const canvas = h.editor.verfCanvas.value;
+    const gekoppeld = [];
+    let stippen = 0;
+    const context = { clearRect() {}, beginPath() {}, arc() {}, fill() { stippen++; }, moveTo() {}, lineTo() {}, stroke() {} };
+
+    h.editor.canvasHost.value = null;
+    h.editor.verfCanvas.value = null;
+    await nextTick();
+    h.editor.canvasHost.value = { appendChild(child) { gekoppeld.push(child); } };
+    h.editor.verfCanvas.value = { ...canvas, getContext: () => context };
+    await nextTick();
+
+    assert.equal(gekoppeld.length, 1);
+    assert.equal(gekoppeld[0], h.app.canvas);
+    assert.equal(stippen, 1);
+    assert.equal(h.editor.fileName.value, "foto.png");
+    assert.equal(h.editor.achtergrondBestandsnaam.value, "achtergrond.png");
+    assert.ok(h.app.stage.children.includes(h.photo));
+    assert.equal(h.editor.geschiedenis.value.length, geschiedenis);
+    assert.equal(h.editor.foutmelding.value, "");
+  } finally { h.close(); }
+});
+
+test("upload previews follow replacement, undo, deletion and draft restore, and release URLs", async () => {
+  const opslag = {};
+  const h = await setup({ leeg: true, opslag });
+  try {
+    for (const [id, upload, preview] of [
+      ["afbeelding", "uploadFoto", "logoVoorbeeldUrl"],
+      ["achtergrond", "uploadAchtergrond", "achtergrondUploadVoorbeeldUrl"],
+    ]) {
+      assert.equal(h.editor[preview].value, "");
+      const bestand = { name: `${id}.png` };
+      await h.editor[upload]({ target: { files: [bestand], value: "" } });
+      const eersteUrl = h.editor[preview].value;
+      assert.equal(h.previewBestanden.get(eersteUrl), bestand);
+
+      await h.editor[upload]({ target: { files: [{ name: "vervangen.png" }], value: "" } });
+      assert.equal(h.previewBestanden.has(eersteUrl), false);
+      assert.equal(h.previewBestanden.get(h.editor[preview].value).name, "vervangen.png");
+      h.editor.ongedaanMaken();
+      assert.equal(h.previewBestanden.get(h.editor[preview].value), bestand);
+
+      h.editor.verwijderLaag(id);
+      assert.equal(h.editor[preview].value, "");
+      h.editor.ongedaanMaken();
+      assert.equal(h.previewBestanden.get(h.editor[preview].value), bestand);
+    }
+    assert.equal(h.previewBestanden.size, 2);
+    await h.editor.slaConceptOp();
+  } finally { h.close(); }
+  assert.equal(h.previewBestanden.size, 0);
+
+  const restored = await setup({ leeg: true, opslag });
+  try {
+    assert.equal(restored.previewBestanden.get(restored.editor.logoVoorbeeldUrl.value).name, "afbeelding.png");
+    assert.equal(restored.previewBestanden.get(restored.editor.achtergrondUploadVoorbeeldUrl.value).name, "achtergrond.png");
+  } finally { restored.close(); }
+  assert.equal(restored.previewBestanden.size, 0);
+});
 
 test("text drag locks inspectors, tracks the pointer outside the canvas and undoes once", async () => {
   const h = await setup();
