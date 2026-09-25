@@ -46,32 +46,40 @@ export async function conceptTransactie(actie, concept) {
 
     return await new Promise((resolve, reject) => {
       const lezen = actie === "lezen";
-      const transactie = db.transaction(OPSLAG, lezen ? "readonly" : "readwrite");
+      const verwijderen = actie === "verwijderen";
+
+      if (!["lezen", "schrijven", "verwijderen"].includes(actie)) {
+        reject(new Error(`Onbekende conceptactie: ${actie}`));
+        return;
+      }
+
+      const transactie = db.transaction(
+          OPSLAG,
+          lezen ? "readonly" : "readwrite",
+      );
       const opslag = transactie.objectStore(OPSLAG);
 
-      if (lezen) {
-        log("4lees precies dezelfde sleutel als bij opslaan. Er wordt niet op bestandsnaam gezocht.");
-      } else {
-        log("bewaar een kopie van de bestanden en bewerkingen. Een bestaand concept op deze sleutel wordt vervangen.");
-        logConcept(log, concept);
-      }
-      const aanvraag = lezen ? opslag.get(SLEUTEL) : opslag.put(concept, SLEUTEL);
-      // Pas als de hele transactie klaar is, is de opslag echt geslaagd.
-      transactie.oncomplete = () => {
-        if (lezen) {
-          if (aanvraag.result) {
-            log("5. Concept gevonden onder 'huidig'. Dit is de laatst succesvol opgeslagen versie.");
-            logConcept(log, aanvraag.result);
-          } else {
+      let aanvraag;
 
-          }
-        } else {
-          log("5. Transactie voltooid: concept daadwerkelijk opgeslagen onder sleutel", aanvraag.result);
-        }
+      if (lezen) {
+        aanvraag = opslag.get(SLEUTEL);
+      } else if (verwijderen) {
+        aanvraag = opslag.delete(SLEUTEL);
+      } else {
+        logConcept(log, concept);
+        aanvraag = opslag.put(concept, SLEUTEL);
+      }
+
+      // Wacht tot de volledige transactie succesvol is afgerond.
+      transactie.oncomplete = () => {
+        log(`Conceptactie '${actie}' voltooid.`);
         resolve(aanvraag.result);
       };
+
       transactie.onerror = () => reject(transactie.error);
-      transactie.onabort = () => reject(transactie.error || new Error("Opslaan afgebroken."));
+      transactie.onabort = () => reject(
+          transactie.error || new Error("Conceptactie afgebroken."),
+      );
     });
   } catch (error) {
     console.error(prefix, "Concepttransactie mislukt:", error);

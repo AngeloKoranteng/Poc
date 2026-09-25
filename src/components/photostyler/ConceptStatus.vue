@@ -13,13 +13,15 @@ const presentatie = computed(() => ({
 </script>
 
 <template>
+
   <div class="conceptstatus" :class="conceptStatus" role="status" aria-live="polite" aria-atomic="true">
     <span class="statusicoon" aria-hidden="true">{{ presentatie.icoon }}</span>
-    <div>
-      <strong>{{ presentatie.titel }}</strong>
-      <p>{{ conceptMelding || "Klik op Concept opslaan. Je ontwerp wordt bewaard in deze browser." }}</p>
-    </div>
+  <div>
+  <strong> {{ presentatie.titel }}</strong>
+  <p> {{ conceptMelding || "Klik op Concept opslaan. Je ontwerp wordt bewaard in browser" }}</p>
   </div>
+  </div>
+
 </template>
 
 <style scoped>

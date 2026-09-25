@@ -1,7 +1,17 @@
 <script setup>
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
-const { canvasKlaar, conceptBezig, slaConceptOp, achtergrondIngesteld, lagen, fileName, achtergrondBestandsnaam, geschiedenis, ongedaanMaken, downloadFoto } = usePhotoStylerContext();
+const { canvasKlaar,
+    nieuwOntwerp,
+  conceptBezig,
+  slaConceptOp,
+  achtergrondIngesteld,
+  lagen,
+  fileName,
+  achtergrondBestandsnaam,
+  geschiedenis,
+  ongedaanMaken,
+  downloadFoto } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -16,10 +26,29 @@ const { canvasKlaar, conceptBezig, slaConceptOp, achtergrondIngesteld, lagen, fi
       <h1>{{ fileName || "Nieuw clubontwerp" }}</h1>
     </div>
     <div class="hoofdacties">
-      <button class="undo" type="button" :disabled="!canvasKlaar || conceptBezig"
-        title="Bewaar één bewerkbaar concept in deze browser" @click="slaConceptOp">
-        {{ conceptBezig ? "Even wachten…" : "Concept opslaan" }}
+     <button
+       class="undo"
+       type="button"
+       :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
+       title="Bewaar een bewerkbaar concept in deze browser"
+       @click="slaConceptOp"
+       >
+       {{ conceptBezig ? "Even wachten..." : "Concept opslaan" }}
+     </button>
+
+      <button
+        class="undo"
+        type="button"
+        :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
+        title="Wis het huidige ontwerp en begin met leeg canvas"
+        @click="nieuwOntwerp"
+        >
+        <svg viewbox="0 0 24 24" aria-hidden="true">
+          <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/>
+        </svg>
+        <span>Nieuw ontwerp</span>
       </button>
+
       <button
         class="undo"
         type="button"

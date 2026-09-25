@@ -562,6 +562,38 @@ export function usePhotoStyler() {
   }
 
 
+async function nieuwOntwerp(){
+    if (!canvasKlaar.value || conceptBezig.value) return;
+
+    const bevestigd = window.confirm(
+        "Een nieuw ontwerp starten ?\n\n" +
+        "Je huidige ontwerp en het opgeslagen concept worden verwijderd." +
+        "Dit kun je niet ongedaan maken",
+    );
+
+    if (!bevestigd) return;
+
+    conceptBezig.value = true;
+    conceptStatus.value = "bezig";
+    conceptMelding.value = "Je lege canvas wordt voorbereid...";
+
+    try{
+      await conceptTransactie("verwijderen");
+
+      //Herlaad pas nadat het conceptecht verwijderd is.
+      window.location.reload();
+    } catch {
+      conceptStatus.value = "fout";
+      conceptMelding.value =
+          "Een nieuwe ontwerp strten is niet gelukt" +
+          "Je canvas is niet leeggemaakt. Probeer opnieuw";
+
+      conceptBezig.value = false;
+    }
+}
+
+
+
   // Bewaart bronbestanden, bewerkingen en verf; geen afgeplatte PNG.
   async function slaConceptOp() {
     if (!canvasKlaar.value || conceptBezig.value) return;
@@ -1591,7 +1623,6 @@ export function usePhotoStyler() {
   });
 
   return {
-    slaConceptOp,
     conceptBezig,
     conceptMelding,
     conceptStatus,
@@ -1641,6 +1672,8 @@ export function usePhotoStyler() {
     kiesAchtergrondKleur,
     foutmelding,
     canvasHost,
+    nieuwOntwerp,
+    slaConceptOp,
     verfCanvas,
     startTekenen,
     tijdensTekenen,
