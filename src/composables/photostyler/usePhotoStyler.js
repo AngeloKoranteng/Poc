@@ -17,7 +17,7 @@ export function usePhotoStyler() {
   const conceptMelding = ref("");
   const conceptStatus = ref("info");
 
-  function markeerNietOpgeslagen(){
+  function markNotSaved(){
     // Tijdens opslaan of het laden van een concept
     if (conceptBezig.value) return;
     conceptStatus.value = "gewijzigd";
@@ -34,7 +34,7 @@ export function usePhotoStyler() {
     const url = ref("");
     let huidigBestand = null;
 
-    function werkBij(bestand) {
+    function edit(bestand) {
       if (bestand === huidigBestand) return;
       const volgendeUrl = bestand ? URL.createObjectURL(bestand) : "";
       if (url.value) URL.revokeObjectURL(url.value);
@@ -42,7 +42,7 @@ export function usePhotoStyler() {
       url.value = volgendeUrl;
     }
 
-    return { url, werkBij };
+    return { url, werkBij: edit };
   }
 
   const logoVoorbeeld = maakUploadVoorbeeld();
@@ -132,7 +132,7 @@ export function usePhotoStyler() {
       ),
   );
 
-  function veranderBelichting(waarde) {
+  function changeLightning(waarde) {
     if (!belichtingBeschikbaar.value) return;
 
     const getal = Number(waarde);
@@ -146,7 +146,7 @@ export function usePhotoStyler() {
     renderCanvas();
   }
 
-  function rondBewerkingAf() {
+  function finishProcessing() {
     stopResize();
     stopSlepen();
     stopTekenen();
@@ -156,7 +156,7 @@ export function usePhotoStyler() {
 
 
   function resetBelichting() {
-    veranderBelichting(0);
+    changeLightning(0);
     stopKleurWijziging();
   }
 
@@ -385,7 +385,7 @@ export function usePhotoStyler() {
 
 
     geschiedenis.value.push(toestand);
-    markeerNietOpgeslagen();
+    markNotSaved();
   }
 
   // Onthoudt de toestand voordat een kleurslider verandert.
@@ -468,19 +468,19 @@ export function usePhotoStyler() {
 
 
   // Herstelt de vorige afbeelding, kleuren en verflaag.
-  function ongedaanMaken() {
+  function undo() {
     if (!canvasKlaar.value || conceptBezig.value) return;
-    rondBewerkingAf();
+    finishProcessing();
     const vorige = geschiedenis.value.pop();
     if (!vorige) return;
     uploadId++;
     achtergrondUploadId++;
-    herstelToestand(vorige);
-    markeerNietOpgeslagen();
+    recoveryCondition(vorige);
+    markNotSaved();
   }
 
   // Bewaar gedecodeerde bronnen in de historie, zodat herstel direct werkt.
-  function herstelBronnen(bronnen) {
+  function recoverySources(bronnen) {
     for (const id of ["achtergrond", "afbeelding"]) {
       const achtergrond = id === "achtergrond";
       const bron = achtergrond ? bronnen.achtergrond : bronnen.foto;
@@ -518,11 +518,11 @@ export function usePhotoStyler() {
     app.stage.addChild(fotoKader);
   }
 
-  function herstelToestand(vorige) {
+  function recoveryCondition(vorige) {
     bezigMetHerstellen = true;
 
     try {
-      if (vorige.bronnen) herstelBronnen(vorige.bronnen);
+      if (vorige.bronnen) recoverySources(vorige.bronnen);
       geselecteerdType = vorige.selectie ?? geselecteerdType;
       if (vorige.verfstreken) {
         laadVerfstreken(vorige.verfstreken);
@@ -584,7 +584,7 @@ export function usePhotoStyler() {
   }
 
 
-async function nieuwOntwerp(){
+async function newDesign(){
     if (!canvasKlaar.value || conceptBezig.value) return;
 
     const bevestigd = window.confirm(
@@ -617,7 +617,7 @@ async function nieuwOntwerp(){
 
 
   // Bewaart bronbestanden, bewerkingen en verf; geen afgeplatte PNG.
-  async function slaConceptOp() {
+  async function saveConcept() {
     if (!canvasKlaar.value || conceptBezig.value) return;
     stopResize();
     stopSlepen();
@@ -654,7 +654,7 @@ async function nieuwOntwerp(){
     }
   }
 
-  async function laadConcept() {
+  async function loadConcept() {
     conceptBezig.value = true;
     conceptStatus.value = "bezig";
     conceptMelding.value = "Je opgeslagen ontwerp wordt geladen. Even geduld…";
@@ -687,7 +687,7 @@ async function nieuwOntwerp(){
       if (toestand.achtergrondPositie) toestand.achtergrondPositie.uploadId = achtergrondUploadId;
       console.info("[Concept · herstel] Pas verfstreken, tekst, kleuren, belichting en posities toe.");
       laadVerfstreken(concept.verfstreken);
-      herstelToestand(toestand);
+      recoveryCondition(toestand);
       geschiedenis.value = [];
       console.info("[Concept · herstel] Klaar: het concept is weer bewerkbaar op het canvas.");
       conceptStatus.value = "opgeslagen";
@@ -702,7 +702,7 @@ async function nieuwOntwerp(){
 
   // Maakt afzonderlijke hoekblokjes met een ruimer klikgebied.
   // Voegt ook zijgrepen en een ronde draaigreep toe.
-  function maakHoekBlokjes() {
+  function makeCornerBlocks() {
     hoekBlokjes = hoekRichtingen.map((richting) => {
       const blokje = new Graphics()
         .rect(-5, -5, 10, 10)
@@ -1080,7 +1080,7 @@ async function nieuwOntwerp(){
     fotoKader.eventMode = "passive";
     app.stage.addChild(fotoKader);
     app.canvas.addEventListener("wheel", zoomMetMuis, { passive: false });
-    maakHoekBlokjes();
+    makeCornerBlocks();
     window.addEventListener("pointermove", tijdensResize, { passive: false });
     window.addEventListener("pointerup", stopResize);
     window.addEventListener("pointercancel", stopResize);
@@ -1108,7 +1108,7 @@ async function nieuwOntwerp(){
 
       if (unmounted || huidigeUpload !== achtergrondUploadId) return;
 
-      rondBewerkingAf();
+      finishProcessing();
       bewaarToestand();
       const nieuweSprite = new Sprite(Texture.from(afbeelding));
 
@@ -1179,7 +1179,7 @@ async function nieuwOntwerp(){
         doel?.closest?.('textarea, [role="textbox"]')) return;
 
     event.preventDefault();
-    ongedaanMaken();
+    undo();
   }
 
 
@@ -1652,7 +1652,7 @@ async function nieuwOntwerp(){
     try {
       await maakCanvas();
       if (!unmounted) window.addEventListener('keydown', geschiedenisToets);
-      if (!unmounted) await laadConcept();
+      if (!unmounted) await loadConcept();
     } catch (error) {
       console.error("Foto-editor starten mislukt:", error);
       foutmelding.value = "De foto-editor kon niet starten. Ververs de pagina.";
@@ -1707,7 +1707,7 @@ async function nieuwOntwerp(){
     uploadAchtergrond,
     fileName,
     geschiedenis,
-    ongedaanMaken,
+    ongedaanMaken: undo,
     downloadFoto,
     panelen,
     actiefPaneel,
@@ -1727,7 +1727,7 @@ async function nieuwOntwerp(){
     kwastGrootte,
     belichtingWaarde,
     belichtingBeschikbaar,
-    veranderBelichting,
+    veranderBelichting: changeLightning,
     resetBelichting,
     achtergrondVoorbeeld,
     achtergrondKanalen,
@@ -1735,8 +1735,8 @@ async function nieuwOntwerp(){
     foutmelding,
     middenlijnen,
     canvasHost,
-    nieuwOntwerp,
-    slaConceptOp,
+    nieuwOntwerp: newDesign,
+    slaConceptOp: saveConcept,
     verfCanvas,
     startTekenen,
     tijdensTekenen,
