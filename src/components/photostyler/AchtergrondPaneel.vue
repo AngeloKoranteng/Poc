@@ -68,7 +68,6 @@ function pasHexkleurToe(event) {
         @blur="stopKleurWijziging"
         />
 
-      <span> {{ gekozenKleur.toUpperCase() }} </span>
     </label>
 
       <label class="tekstveld">
@@ -103,12 +102,6 @@ function pasHexkleurToe(event) {
         />
       </div>
 
-      <KleurSliders
-          :kanalen="achtergrondKanalen"
-          label="Achtergrond"
-          @start="startKleurWijziging"
-          @stop="stopKleurWijziging"
-      />
     </fieldset>
 
     <p class="tip">
