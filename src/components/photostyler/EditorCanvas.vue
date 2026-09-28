@@ -3,6 +3,7 @@ import CanvasTekstInvoer from "./CanvasTekstInvoer.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
 
 const {
+  middenlijnen,
   canvasTekstActief,
   startCanvasTekst,
   tekenModus,
@@ -90,6 +91,8 @@ const {
             </button>
           </div>
           <CanvasTekstInvoer />
+          <div v-if="middenlijnen.verticaal" class="middenlijn middenlijn-verticaal" aria-hidden="true"></div>
+          <div v-if="middenlijnen.horizontaal" class="middenlijn middenlijn-horizontaal" aria-hidden="true"></div>
         </div>
         <p v-if="canvasTekstActief" class="canvashint">
           Enter: nieuwe regel · Klik buiten de tekst of druk Cmd/Ctrl + Enter om op te slaan · Escape: annuleren

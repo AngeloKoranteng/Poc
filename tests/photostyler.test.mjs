@@ -147,7 +147,10 @@ async function setup({ opslag = {}, leeg = false } = {}) {
     unmounted = [];
   const window = new EventTarget();
   window.devicePixelRatio = 1;
+  window.location = { search: "" };
   let app;
+  let downloadCanvas;
+  let downloadLink;
   class Application {
     constructor() {
       app = this;
@@ -198,6 +201,7 @@ async function setup({ opslag = {}, leeg = false } = {}) {
   }
   const context = createContext({
     console,
+    URLSearchParams,
     window,
     Image: class {
       async decode() {}
@@ -211,8 +215,8 @@ async function setup({ opslag = {}, leeg = false } = {}) {
       revokeObjectURL(url) { previewBestanden.delete(url); },
     },
     document: { createElement: (tag) => {
-      if (tag !== "canvas") return { click() {} };
-      const canvas = { width: 2, height: 1 };
+      if (tag !== "canvas") return { click() { downloadLink = this; } };
+      const canvas = { width: 2, height: 1, toDataURL: () => { downloadCanvas = canvas; return "data:image/png;base64,"; } };
       canvas.getContext = () => ({
         drawImage() {},
         getImageData: () => ({ data: new Uint8ClampedArray([40, 80, 120, 128, 200, 100, 0, 255]) }),
@@ -323,6 +327,8 @@ async function setup({ opslag = {}, leeg = false } = {}) {
   return {
     editor,
     previewBestanden,
+    get downloadCanvas() { return downloadCanvas; },
+    get downloadLink() { return downloadLink; },
     app,
     photo,
     text,
@@ -1078,5 +1084,56 @@ test("background upload and removal are undoable without affecting the logo", as
     assert.equal(h.editor.achtergrondBestandsnaam.value, "");
     assert.ok(h.app.stage.children.includes(h.photo));
     assert.ok(h.app.stage.children.includes(h.text));
+  } finally { h.close(); }
+});
+
+
+test("downloads always use XXL dimensions", async () => {
+  const h = await setup();
+  try {
+    h.editor.downloadFoto();
+    assert.equal(h.downloadCanvas.width, 1350);
+    assert.equal(h.downloadCanvas.height, 852);
+  } finally { h.close(); }
+});
+
+test("drag snaps to canvas center and clears guides when released", async () => {
+  const h = await setup();
+  try {
+    h.text.emit("pointerdown", h.pointer(400, 250));
+    h.window.emit("pointermove", h.pointer(404, 247));
+    assert.equal(h.text.x, 400);
+    assert.equal(h.text.y, 250);
+    assert.equal(h.editor.middenlijnen.value.verticaal, true);
+    assert.equal(h.editor.middenlijnen.value.horizontaal, true);
+    h.window.emit("pointermove", h.pointer(450, 247));
+    assert.equal(h.text.x, 450);
+    assert.equal(h.editor.middenlijnen.value.verticaal, false);
+    h.window.emit("pointerup", h.pointer(450, 247));
+    assert.equal(h.editor.middenlijnen.value.horizontaal, false);
+  } finally { h.close(); }
+});
+
+
+test("PNG filename uses the supplied company name, then uuid, then the default", async () => {
+  const h = await setup();
+  try {
+    for (const [search, expected] of [
+      ["?uuid=1234&naam=Club%20Ajax", "Club Ajax.png"],
+      ["?naam=Caf%C3%A9%20Noord", "Café Noord.png"],
+      ["?naam=Club+Ajax.png", "Club Ajax.png"],
+      ["?naam=..%2FClub%3AAjax", "ClubAjax.png"],
+      ["?uuid=1234&naam=%20%2F%20", "1234.png"],
+      ["?uuid=1234", "1234.png"],
+      ["?uuid=550e8400-e29b-41d4-a716-446655440000", "550e8400-e29b-41d4-a716-446655440000.png"],
+      ["?uuid=..%2F1234", "1234.png"],
+      ["?uuid=", "mijn-bewerkte-foto-1350x852.png"],
+      ["?uuid=%2F", "mijn-bewerkte-foto-1350x852.png"],
+      ["", "mijn-bewerkte-foto-1350x852.png"],
+    ]) {
+      h.window.location.search = search;
+      h.editor.downloadFoto();
+      assert.equal(h.downloadLink.download, expected);
+    }
   } finally { h.close(); }
 });

@@ -891,3 +891,22 @@ line-height: 1.2;
     }
   }
   }
+
+:deep(.middenlijn) {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  background: #e62996;
+}
+:deep(.middenlijn-verticaal) {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+:deep(.middenlijn-horizontaal) {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+}

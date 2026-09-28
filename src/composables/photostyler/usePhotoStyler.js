@@ -9,6 +9,7 @@ import { useBelichting } from "./useBelichting.js";
 
 export function usePhotoStyler() {
   // Verwijzingen naar het canvas, de verflaag en het uploadveld.
+  const middenlijnen = ref({ verticaal: false, horizontaal: false });
   const canvasHost = ref(null);
   const verfCanvas = ref(null);
   const bestandInput = ref(null);
@@ -1391,6 +1392,13 @@ async function nieuwOntwerp(){
       );
     }
 
+    // Een tolerantie van zes schermpixels blijft gelijk bij een kleiner canvas.
+    const rect = app.canvas.getBoundingClientRect();
+    const verticaal = Math.abs(x - app.screen.width / 2) <= 6 * app.screen.width / rect.width;
+    const horizontaal = Math.abs(y - app.screen.height / 2) <= 6 * app.screen.height / rect.height;
+    if (verticaal) x = app.screen.width / 2;
+    if (horizontaal) y = app.screen.height / 2;
+    middenlijnen.value = { verticaal, horizontaal };
     object.position.set(x, y);
     renderCanvas();
   }
@@ -1406,6 +1414,7 @@ async function nieuwOntwerp(){
     // Eerst wissen: releasePointerCapture kan opnieuw een stop-event geven.
     sleepBegin = null;
     slepen = false;
+    middenlijnen.value = { verticaal: false, horizontaal: false };
     inspectorsVergrendeld.value = false;
     const object = actie.object;
     if (object.x !== actie.x || object.y !== actie.y) {
@@ -1504,6 +1513,7 @@ async function nieuwOntwerp(){
 
   // Combineert achtergrond, afbeelding en verf tot een PNG-download.
   function downloadFoto() {
+    stopSlepen();
     stopResize();
     stopCanvasTekst();
     if (!canvasKlaar.value || (!achtergrondIngesteld.value && !fotoSprite && !achtergrondSprite && !getTekstObject())) return;
@@ -1514,18 +1524,33 @@ async function nieuwOntwerp(){
     try {
       fotoKader.visible = false;
 
-      const canvas = app.renderer.extract.canvas({
+      const formaat = { breedte: 1350, hoogte: 852 };
+      const bron = app.renderer.extract.canvas({
         target: app.stage,
         frame: app.screen.clone(),
-        resolution: 1,
+        resolution: formaat.breedte / app.screen.width,
         clearColor: achtergrondKleur(),
       });
-      canvas
-        .getContext("2d")
-        .drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = formaat.breedte;
+      canvas.height = formaat.hoogte;
+      const context = canvas.getContext("2d");
+      context.drawImage(bron, 0, 0, canvas.width, canvas.height);
+      context.drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
       const link = document.createElement("a");
 
-      link.download = "mijn-bewerkte-foto.png";
+      // De afzender geeft de bedrijfs- of logonaam mee; de ontvanger hoeft niets in te vullen.
+      const parameters = new URLSearchParams(window.location.search);
+      const naam = (parameters.get("naam") ?? "")
+        .normalize("NFC")
+        .replace(/\.png$/i, "")
+        .replace(/[^\p{L}\p{N} _-]/gu, "")
+        .trim()
+        .slice(0, 128)
+        .trim();
+      const uuid = (parameters.get("uuid") ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128);
+      const bestandsnaam = naam || uuid;
+      link.download = `${bestandsnaam || "mijn-bewerkte-foto-1350x852"}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } finally {
@@ -1708,6 +1733,7 @@ async function nieuwOntwerp(){
     achtergrondKanalen,
     kiesAchtergrondKleur,
     foutmelding,
+    middenlijnen,
     canvasHost,
     nieuwOntwerp,
     slaConceptOp,
