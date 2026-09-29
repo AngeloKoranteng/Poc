@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const { conceptStatus, conceptMelding } = usePhotoStylerContext();
 const presentatie = computed(() => ({

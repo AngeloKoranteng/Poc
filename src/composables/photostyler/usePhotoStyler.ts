@@ -1,18 +1,20 @@
+import type { FederatedPointerEvent, Renderer } from "pixi.js";
+import type { EditableObject, ImageSource, EditorState, DragAction, ResizeAction, Point, UploadEvent } from "./types.ts";
 import { markRaw, computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Application, Graphics, Sprite, Texture, Rectangle } from "pixi.js";
-import { panelen, kwastPalet } from "./config.js";
-import { useKleuren } from "./useKleuren.js";
-import { useVerflaag } from "./useVerflaag.js";
-import { useTekst } from "./useTekst.js";
-import { conceptTransactie } from "./conceptOpslag.js";
-import { useBelichting } from "./useBelichting.js";
+import { panelen, kwastPalet } from "./config.ts";
+import { useColors } from "./useColors.ts";
+import { usePaintLayer } from "./usePaintLayer.ts";
+import { useText } from "./useText.ts";
+import { draftTransaction } from "./conceptStorage.ts";
+import { useLighting } from "./useLighting.ts";
 
 export function usePhotoStyler() {
   // Verwijzingen naar het canvas, de verflaag en het uploadveld.
   const middenlijnen = ref({ verticaal: false, horizontaal: false });
-  const canvasHost = ref(null);
-  const verfCanvas = ref(null);
-  const bestandInput = ref(null);
+  const canvasHost = ref<HTMLElement | null>(null);
+  const verfCanvas = ref<HTMLCanvasElement | null>(null);
+  const bestandInput = ref<HTMLInputElement | null>(null);
   const conceptBezig = ref(false);
   const conceptMelding = ref("");
   const conceptStatus = ref("info");
@@ -24,17 +26,17 @@ export function usePhotoStyler() {
     conceptMelding.value = "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan."
   }
 
-  let fotoBron = null;
-  let achtergrondBron = null;
-  let fotoBestand = null;
-  let achtergrondBestand = null;
+  let fotoBron: ImageSource | null = null;
+  let achtergrondBron: ImageSource | null = null;
+  let fotoBestand: File | null = null;
+  let achtergrondBestand: File | null = null;
 
   // Houd de preview-URL geldig zolang het bijbehorende bestand gebruikt wordt.
-  function maakUploadVoorbeeld() {
+  function createUploadPreview() {
     const url = ref("");
-    let huidigBestand = null;
+    let huidigBestand: File | null = null;
 
-    function edit(bestand) {
+    function edit(bestand: File | null) {
       if (bestand === huidigBestand) return;
       const volgendeUrl = bestand ? URL.createObjectURL(bestand) : "";
       if (url.value) URL.revokeObjectURL(url.value);
@@ -42,17 +44,17 @@ export function usePhotoStyler() {
       url.value = volgendeUrl;
     }
 
-    return { url, werkBij: edit };
+    return { url, update: edit };
   }
 
-  const logoVoorbeeld = maakUploadVoorbeeld();
-  const achtergrondUploadVoorbeeld = maakUploadVoorbeeld();
+  const logoVoorbeeld = createUploadPreview();
+  const achtergrondUploadVoorbeeld = createUploadPreview();
 
 
   const achtergrondBestandsnaam = ref("");
   const achtergrondDonkerte = ref(0);
   const achtergrondIngesteld = ref(false);
-  let achtergrondSprite = null;
+  let achtergrondSprite: Sprite | null = null;
   let achtergrondUploadId = 0;
 
 
@@ -70,16 +72,16 @@ export function usePhotoStyler() {
   const kwastGrootte = ref(12);
 
   // Bewaart eerdere toestanden en het begin van een bewerking.
-  const geschiedenis = ref([]);
+  const geschiedenis = ref<EditorState[]>([]);
   let bezigMetHerstellen = false;
-  let sleepBegin = null;
-  let kleurBegin = null;
+  let sleepBegin: DragAction | null = null;
+  let kleurBegin: EditorState | null = null;
 
   // Pixi-editor en de afbeelding op het canvas.
-  let app;
-  let fotoSprite;
+  let app: Application<Renderer<HTMLCanvasElement>>;
+  let fotoSprite: Sprite | null = null;
 
-  let fotoKader;
+  let fotoKader: Graphics;
   // Bepaalt welk object met de grepen wordt bewerkt.
   let geselecteerdType = "afbeelding";
   const lagen = ref([
@@ -108,12 +110,12 @@ export function usePhotoStyler() {
 
   const geselecteerdeLaag = ref(geselecteerdType);
   // Elke afbeelding bewaart haar eigen belichting.
-  const belichtingen = ref({
+  const belichtingen = ref<Record<string, number>>({
     afbeelding: 0,
     achtergrond: 0,
   });
 
-  const belichtingsBewerking = useBelichting();
+  const belichtingsBewerking = useLighting();
 
   const belichtingWaarde = computed(
       () => belichtingen.value[geselecteerdeLaag.value] ?? 0,
@@ -132,13 +134,13 @@ export function usePhotoStyler() {
       ),
   );
 
-  function changeLightning(waarde) {
+  function changeLighting(waarde: number | string) {
     if (!belichtingBeschikbaar.value) return;
 
     const getal = Number(waarde);
     if (!Number.isFinite(getal)) return;
 
-    startKleurWijziging();
+    startColorChange();
 
     belichtingen.value[geselecteerdeLaag.value] =
         Math.max(-2, Math.min(2, getal));
@@ -148,38 +150,38 @@ export function usePhotoStyler() {
 
   function finishProcessing() {
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
-    stopCanvasTekst();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
+    stopCanvasText();
   }
 
 
-  function resetBelichting() {
-    changeLightning(0);
-    stopKleurWijziging();
+  function resetLighting() {
+    changeLighting(0);
+    stopColorChange();
   }
 
-  function pasBelichtingToe(id) {
-    belichtingsBewerking.pasToe(id, belichtingen.value[id]);
+  function applyLighting(id: string) {
+    belichtingsBewerking.apply(id, belichtingen.value[id]);
   }
 
-  function getLaagObject(id) {
-    if (id === "tekst") return getTekstObject();
+  function getLayerObject(id: string) {
+    if (id === "tekst") return getTextObject();
     if (id === "afbeelding") return fotoSprite;
     if (id === "achtergrond") return achtergrondSprite;
     return null;
   }
 
   // Een nieuwe upload moet direct zichtbaar en bewerkbaar zijn.
-  function resetUploadLaag(id) {
+  function resetUploadLayer(id: string) {
     const laag = lagen.value.find((laag) => laag.id === id);
     if (!laag) return;
     laag.zichtbaar = true;
     laag.vergrendeld = false;
   }
 
-  function magLaagVerplaatsen(id) {
+  function canMoveLayer(id: string) {
     const laag = lagen.value.find((laag) => laag.id === id);
 
     return Boolean(
@@ -190,11 +192,11 @@ export function usePhotoStyler() {
   }
 
 // Werkt de lijst en de zichtbaarheid op het canvas bij.
-  function synchroniseerLagen() {
+  function syncLayers() {
     geselecteerdeLaag.value = geselecteerdType;
 
     for (const laag of lagen.value) {
-      const object = getLaagObject(laag.id);
+      const object = getLayerObject(laag.id);
 
       laag.aanwezig = Boolean(object);
 
@@ -206,13 +208,13 @@ export function usePhotoStyler() {
     }
   }
 
-  function selecteerLaag(id) {
-    if (!getLaagObject(id)) return;
+  function selectLayer(id: string) {
+    if (!getLayerObject(id)) return;
 
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
 
     tekenModus.value = false;
     geselecteerdType = id;
@@ -221,53 +223,53 @@ export function usePhotoStyler() {
     renderCanvas();
   }
 
-  function verwijderLaag(id) {
-    if (!canvasKlaar.value || !getLaagObject(id)) return;
+  function removeLayer(id: string) {
+    if (!canvasKlaar.value || !getLayerObject(id)) return;
 
-    selecteerLaag(id);
+    selectLayer(id);
 
     if (id === "tekst") {
-      verwijderTekst();
+      removeText();
     } else {
-      verwijderFoto();
+      deletePhoto();
     }
   }
 
 
-  function wisselLaagZichtbaarheid(id) {
+  function toggleLayerVisibility(id: string) {
     const laag = lagen.value.find((laag) => laag.id === id);
-    if (!laag || !getLaagObject(id)) return;
+    if (!laag || !getLayerObject(id)) return;
 
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
 
-    bewaarToestand();
+    saveState();
     laag.zichtbaar = !laag.zichtbaar;
 
     renderCanvas();
   }
 
-  function wisselLaagVergrendeling(id) {
+  function toggleLayerLock(id: string) {
     const laag = lagen.value.find((laag) => laag.id === id);
-    if (!laag || !getLaagObject(id)) return;
+    if (!laag || !getLayerObject(id)) return;
 
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
 
-    bewaarToestand();
+    saveState();
     laag.vergrendeld = !laag.vergrendeld;
 
     renderCanvas();
   }
 
-  function getActiefObject() {
-    if (canvasTekstActief.value || !magLaagVerplaatsen(geselecteerdType)) return null;
+  function getActiveObject() {
+    if (canvasTekstActief.value || !canMoveLayer(geselecteerdType)) return null;
 
-    if (geselecteerdType === "tekst") return getTekstObject();
+    if (geselecteerdType === "tekst") return getTextObject();
 
     // De achtergrond gebruikt slepen, maar geen schaal- of draaigrepen.
     if (geselecteerdType === "achtergrond") return null;
@@ -276,7 +278,7 @@ export function usePhotoStyler() {
   }
 
   // Leest de transformatie van de geselecteerde foto of tekst.
-  function leesObjectToestand(object) {
+  function readObjectState(object: EditableObject) {
     return {
       x: object.x,
       y: object.y,
@@ -287,9 +289,9 @@ export function usePhotoStyler() {
   }
 
   // Hoekblokjes, zijgrepen en de actieve schaal- of draaibewerking.
-  let hoekBlokjes = [];
-  let draaiGreep;
-  let resizeActie = null;
+  let hoekBlokjes: Graphics[] = [];
+  let draaiGreep: Graphics;
+  let resizeActie: ResizeAction | null = null;
 
   const hoekRichtingen = [
     // Hoeken veranderen beide afmetingen met dezelfde factor.
@@ -313,11 +315,11 @@ export function usePhotoStyler() {
   let verschil = { x: 0, y: 0 };
 
   // Opent een paneel en stopt de actieve bewerking.
-  function kiesPaneel(paneel) {
+  function selectPanel(paneel: string) {
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
     if (paneel !== "tekenen") tekenModus.value = false;
     actiefPaneel.value = paneel;
     // Laat de grepen aansluiten bij het gekozen instellingenpaneel.
@@ -328,17 +330,17 @@ export function usePhotoStyler() {
   }
 
   // Schakelt de kwast in of uit.
-  function wisselKwast() {
+  function toggleBrush() {
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
     tekenModus.value = !tekenModus.value;
     if (tekenModus.value) actiefPaneel.value = "tekenen";
   }
 
   // Leest positie, schaal, kleuren en het aantal verfstreken.
-  function huidigeToestand() {
+  function getCurrentState(): EditorState {
     return {
       bronnen: { foto: fotoBron, achtergrond: achtergrondBron },
       selectie: geselecteerdType,
@@ -374,13 +376,13 @@ export function usePhotoStyler() {
           : null,
 
 
-      aantalVerfstreken: aantalVerfstreken(),
-      tekst: huidigeTekst(),
+      aantalVerfstreken: getPaintStrokeCount(),
+      tekst: getCurrentText(),
     };
   }
 
   // Bewaart een toestand voor Ongedaan maken.
-  function bewaarToestand(toestand = huidigeToestand()) {
+  function saveState(toestand = getCurrentState()) {
     if (bezigMetHerstellen || !canvasKlaar.value) return;
 
 
@@ -389,28 +391,28 @@ export function usePhotoStyler() {
   }
 
   // Onthoudt de toestand voordat een kleurslider verandert.
-  function startKleurWijziging() {
+  function startColorChange() {
     stopResize();
     if (!canvasKlaar.value || kleurBegin) return;
 
-    kleurBegin = huidigeToestand();
+    kleurBegin = getCurrentState();
   }
 
   // Bewaart een kleurwijziging als een enkele bewerking.
-  function stopKleurWijziging() {
+  function stopColorChange() {
     if (!kleurBegin) return;
 
-    const einde = huidigeToestand();
+    const einde = getCurrentState();
     const veranderd = JSON.stringify(kleurBegin) !== JSON.stringify(einde);
     if (veranderd) {
-      bewaarToestand(kleurBegin);
+      saveState(kleurBegin);
     }
     kleurBegin = null;
   }
 
   // Een kleurkeuze schakelt de canvasachtergrond van foto naar effen kleur.
   // De foto blijft als verborgen laag bewaard, ook voor Ongedaan maken.
-  function kiesAchtergrondKleur(kleur, doorlopend = false) {
+  function selectBackgroundColor(kleur: string, doorlopend = false) {
     if (!canvasKlaar.value || inspectorsVergrendeld.value) return;
 
     const hex = String(kleur).trim().toLowerCase();
@@ -430,15 +432,15 @@ export function usePhotoStyler() {
       (laag) => laag.id === "achtergrond",
     )?.zichtbaar;
     if (!kleurVeranderd && achtergrondIngesteld.value && !zichtbareAchtergrond) {
-      if (!doorlopend) stopKleurWijziging();
+      if (!doorlopend) stopColorChange();
       return;
     }
 
     if (!doorlopend) {
-      stopKleurWijziging();
+      stopColorChange();
     }
 
-    startKleurWijziging();
+    startColorChange();
 
     achtergrondIngesteld.value = true;
 
@@ -462,7 +464,7 @@ export function usePhotoStyler() {
     // automatisch voor het opnieuw tekenen van de canvas.
 
     if (!doorlopend) {
-      stopKleurWijziging();
+      stopColorChange();
     }
   }
 
@@ -480,25 +482,25 @@ export function usePhotoStyler() {
   }
 
   // Bewaar gedecodeerde bronnen in de historie, zodat herstel direct werkt.
-  function recoverySources(bronnen) {
+  function recoverySources(bronnen: NonNullable<EditorState["bronnen"]>) {
     for (const id of ["achtergrond", "afbeelding"]) {
       const achtergrond = id === "achtergrond";
       const bron = achtergrond ? bronnen.achtergrond : bronnen.foto;
       if (bron === (achtergrond ? achtergrondBron : fotoBron)) continue;
       const oud = achtergrond ? achtergrondSprite : fotoSprite;
-      belichtingsBewerking.verwijder(id);
+      belichtingsBewerking.remove(id);
       if (oud) {
         app.stage.removeChild(oud);
         oud.destroy({ texture: true, textureSource: true });
       }
-      let sprite = null;
+      let sprite: Sprite | null = null;
       if (bron) {
         sprite = new Sprite(Texture.from(bron.afbeelding));
         sprite.anchor.set(0.5);
         sprite.eventMode = "static";
         sprite.cursor = "grab";
-        sprite.on("pointerdown", (event) => startSlepen(event, sprite));
-        belichtingsBewerking.registreer(id, sprite, bron.afbeelding);
+        sprite.on("pointerdown", (event) => startDrag(event, sprite));
+        belichtingsBewerking.register(id, sprite, bron.afbeelding);
         if (achtergrond) app.stage.addChildAt(sprite, 0);
         else app.stage.addChild(sprite);
       }
@@ -514,22 +516,23 @@ export function usePhotoStyler() {
         fileName.value = bron?.bestand.name ?? "";
       }
     }
-    if (getTekstObject()) app.stage.addChild(getTekstObject());
+    const textObject = getTextObject();
+    if (textObject) app.stage.addChild(textObject);
     app.stage.addChild(fotoKader);
   }
 
-  function recoveryCondition(vorige) {
+  function recoveryCondition(vorige: EditorState) {
     bezigMetHerstellen = true;
 
     try {
       if (vorige.bronnen) recoverySources(vorige.bronnen);
       geselecteerdType = vorige.selectie ?? geselecteerdType;
       if (vorige.verfstreken) {
-        laadVerfstreken(vorige.verfstreken);
+        loadPaintStrokes(vorige.verfstreken);
       } else {
-        herstelVerflaag(vorige.aantalVerfstreken);
+        restorePaintLayer(vorige.aantalVerfstreken);
       }
-      herstelTekst(vorige.tekst ?? null);
+      restoreText(vorige.tekst ?? null);
 
 
       for (const laag of lagen.value) {
@@ -543,7 +546,7 @@ export function usePhotoStyler() {
 
       // Herstelt de positie, beide schalen en de draaihoek.
       if (fotoSprite && vorige.schaalX !== null && vorige.schaalY !== null) {
-        fotoSprite.position.set(vorige.x, vorige.y);
+        fotoSprite.position.set(vorige.x ?? 400, vorige.y ?? 250);
         fotoSprite.scale.set(vorige.schaalX, vorige.schaalY);
         fotoSprite.angle = vorige.hoek;
       }
@@ -575,8 +578,8 @@ export function usePhotoStyler() {
       groen.value = vorige.groen;
       blauw.value = vorige.blauw;
 
-      pasAchtergrondDonkerteToe();
-      app.renderer.background.color = achtergrondKleur();
+      applyBackground();
+      app.renderer.background.color = getBackgroundColor();
       renderCanvas();
     } finally {
       bezigMetHerstellen = false;
@@ -600,7 +603,7 @@ async function newDesign(){
     conceptMelding.value = "Je lege canvas wordt voorbereid...";
 
     try{
-      await conceptTransactie("verwijderen");
+      await draftTransaction("verwijderen");
 
       //Herlaad pas nadat het conceptecht verwijderd is.
       window.location.reload();
@@ -620,24 +623,24 @@ async function newDesign(){
   async function saveConcept() {
     if (!canvasKlaar.value || conceptBezig.value) return;
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
-    stopCanvasTekst();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
+    stopCanvasText();
     conceptBezig.value = true;
     conceptStatus.value = "bezig";
     conceptMelding.value = "Je ontwerp wordt opgeslagen. Even geduld…";
     try {
       console.info("[Concept · editor] Verzamel de originele uploadbestanden en de huidige bewerkingen.");
-      const {bronnen, ...toestand} = huidigeToestand();
+      const {bronnen, ...toestand} = getCurrentState();
       const concept = {
         versie: 1,
         toestand: JSON.parse(JSON.stringify(toestand)),
         foto: fotoBestand,
         achtergrond: achtergrondBestand,
-        verfstreken: leesVerfstreken(),
+        verfstreken: readPaintStrokes(),
       };
-      await conceptTransactie("schrijven", concept);
+      await draftTransaction("schrijven", concept);
 
       const tijdstip = new Intl.DateTimeFormat("nl-NL", {
         hour: "2-digit",
@@ -659,7 +662,7 @@ async function newDesign(){
     conceptStatus.value = "bezig";
     conceptMelding.value = "Je opgeslagen ontwerp wordt geladen. Even geduld…";
     try {
-      const concept = await conceptTransactie("lezen");
+      const concept = await draftTransaction("lezen");
       if (unmounted) return;
       if (!concept) {
         conceptStatus.value = "info";
@@ -669,16 +672,16 @@ async function newDesign(){
       if (concept.versie !== 1 || !concept.toestand || !Array.isArray(concept.verfstreken)) {
         throw new Error("Onbekend conceptformaat");
       }
-      const uploadEvent = (bestand) => ({ target: { files: [bestand], value: "" } });
+      const uploadEvent = (bestand: File) => ({ target: { files: [bestand], value: "" } });
       if (concept.achtergrond) {
         console.info("[Concept · herstel] Achtergrondbestand uit IndexedDB opnieuw laden:", concept.achtergrond.name);
-        await uploadAchtergrond(uploadEvent(concept.achtergrond));
+        await uploadBackground(uploadEvent(concept.achtergrond));
         if (unmounted) return;
         if (!achtergrondSprite) throw new Error("Achtergrond herstellen mislukt");
       }
       if (concept.foto) {
         console.info("[Concept · herstel] Fotobestand uit IndexedDB opnieuw laden:", concept.foto.name);
-        await uploadFoto(uploadEvent(concept.foto));
+        await uploadPhoto(uploadEvent(concept.foto));
         if (unmounted) return;
         if (!fotoSprite) throw new Error("Foto herstellen mislukt");
       }
@@ -686,7 +689,7 @@ async function newDesign(){
       toestand.belichtingAchtergrondUploadId = achtergrondUploadId;
       if (toestand.achtergrondPositie) toestand.achtergrondPositie.uploadId = achtergrondUploadId;
       console.info("[Concept · herstel] Pas verfstreken, tekst, kleuren, belichting en posities toe.");
-      laadVerfstreken(concept.verfstreken);
+      loadPaintStrokes(concept.verfstreken);
       recoveryCondition(toestand);
       geschiedenis.value = [];
       console.info("[Concept · herstel] Klaar: het concept is weer bewerkbaar op het canvas.");
@@ -699,6 +702,7 @@ async function newDesign(){
       conceptBezig.value = false;
     }
   }
+
 
   // Maakt afzonderlijke hoekblokjes met een ruimer klikgebied.
   // Voegt ook zijgrepen en een ronde draaigreep toe.
@@ -749,21 +753,21 @@ async function newDesign(){
     draaiGreep.eventMode = "static";
     draaiGreep.cursor = "grab";
     draaiGreep.hitArea = new Rectangle(-22, -22, 44, 44);
-    draaiGreep.on("pointerdown", startDraaien);
+    draaiGreep.on("pointerdown", startTurn);
 
     fotoKader.addChild(draaiGreep);
   }
 
   // Laat het kader en de hoekblokjes de geselecteerde foto of tekst volgen.
   // Plaatst ook de zijgrepen en de draaigreep.
-  function werkFotoKaderBij() {
-    const object = getActiefObject();
+  function adjustPhotoFrame() {
+    const object = getActiveObject();
     if (!fotoKader) return;
 
     fotoKader.clear();
     fotoKader.visible = Boolean(object) && !tekenModus.value;
 
-    if (!fotoKader.visible) return;
+    if (!fotoKader.visible || !object) return;
 
     fotoKader.position.copyFrom(object.position);
     fotoKader.rotation = object.rotation;
@@ -809,18 +813,18 @@ async function newDesign(){
   function renderCanvas() {
     if (!app || !canvasKlaar.value) return;
 
-    logoVoorbeeld.werkBij(fotoBestand);
-    achtergrondUploadVoorbeeld.werkBij(achtergrondBestand);
+    logoVoorbeeld.update(fotoBestand);
+    achtergrondUploadVoorbeeld.update(achtergrondBestand);
 
-    pasBelichtingToe("afbeelding");
-    pasBelichtingToe("achtergrond");
+    applyLighting("afbeelding");
+    applyLighting("achtergrond");
 
-    synchroniseerLagen();
-    werkFotoKaderBij();
+    syncLayers();
+    adjustPhotoFrame();
     app.render();
   }
 
-  function resizePunt(event) {
+  function resizePoint(event: PointerEvent | FederatedPointerEvent) {
     const rechthoek = app.canvas.getBoundingClientRect();
     return {
       x:
@@ -833,8 +837,8 @@ async function newDesign(){
 
   // Bewaart de beginpositie en de tegenoverliggende, vaste hoek.
   // Bij een zijgreep blijft de tegenoverliggende rand op zijn plaats.
-  function startResize(event, richting) {
-    const object = getActiefObject();
+  function startResize(event: FederatedPointerEvent, richting: Point) {
+    const object = getActiveObject();
     if (
       !canvasKlaar.value ||
       !object ||
@@ -848,8 +852,8 @@ async function newDesign(){
     event.stopPropagation();
     event.preventDefault();
 
-    stopSlepen();
-    stopKleurWijziging();
+    stopDrag();
+    stopColorChange();
 
     const breedte = object.width;
     const hoogte = object.height;
@@ -862,8 +866,8 @@ async function newDesign(){
       type: "schalen",
       pointerId: event.pointerId,
       object,
-      begin: leesObjectToestand(object),
-      geschiedenisBegin: huidigeToestand(),
+      begin: readObjectState(object),
+      geschiedenisBegin: getCurrentState(),
       richting,
       breedte,
       hoogte,
@@ -878,8 +882,8 @@ async function newDesign(){
   }
 
   // Begint het draaien rond het middelpunt van de afbeelding.
-  function startDraaien(event) {
-    const object = getActiefObject();
+  function startTurn(event: FederatedPointerEvent) {
+    const object = getActiveObject();
     if (
       !canvasKlaar.value ||
       !object ||
@@ -893,16 +897,16 @@ async function newDesign(){
     event.stopPropagation();
     event.preventDefault();
 
-    stopSlepen();
-    stopKleurWijziging();
+    stopDrag();
+    stopColorChange();
     actiefPaneel.value = geselecteerdType;
 
     resizeActie = {
       type: "draaien",
       pointerId: event.pointerId,
       object,
-      begin: leesObjectToestand(object),
-      geschiedenisBegin: huidigeToestand(),
+      begin: readObjectState(object),
+      geschiedenisBegin: getCurrentState(),
       laatsteMuisHoek: Math.atan2(
         event.global.y - object.y,
         event.global.x - object.x,
@@ -916,9 +920,9 @@ async function newDesign(){
 
   // Verwerkt draaien, afzonderlijk uitrekken en gelijkmatig schalen.
   // Hoekgrepen schalen beide assen gelijk en houden de overstaande hoek vast.
-  function tijdensResize(event) {
+  function duringResize(event: PointerEvent) {
     if (sleepBegin) {
-      tijdensSlepen(event);
+      duringDrag(event);
       return;
     }
     const actie = resizeActie;
@@ -927,7 +931,7 @@ async function newDesign(){
     if (!actie || !object || event.pointerId !== actie.pointerId) return;
 
     event.preventDefault();
-    const punt = resizePunt(event);
+    const punt = resizePoint(event);
 
     // Draait de foto met de hoekverandering van de aanwijzer.
     if (actie.type === "draaien") {
@@ -1010,9 +1014,9 @@ async function newDesign(){
 
   // Bewaart een volledige sleepbeweging als één stap voor Ongedaan maken.
   // Dit geldt voor schalen, uitrekken en draaien.
-  function stopResize(event) {
+  function stopResize(event?: Event) {
     if (sleepBegin) {
-      stopSlepen(event);
+      stopDrag(event);
       return;
     }
     const actie = resizeActie;
@@ -1020,13 +1024,13 @@ async function newDesign(){
 
     if (!actie) return;
 
-    if (event?.pointerId !== undefined && event.pointerId !== actie.pointerId) {
+    if (event && "pointerId" in event && event.pointerId !== actie.pointerId) {
       return;
     }
 
     // Neemt ook de laatste aanwijzerpositie mee.
     if (event?.type === "pointerup") {
-      tijdensResize(event);
+      duringResize(event as PointerEvent);
     }
 
     // Eerst wissen: het loslaten van capture kan opnieuw een event geven.
@@ -1041,10 +1045,10 @@ async function newDesign(){
         object.y !== actie.begin.y ||
         object.angle !== actie.begin.hoek)
     ) {
-      bewaarToestand(actie.geschiedenisBegin);
+      saveState(actie.geschiedenisBegin);
     }
 
-    if (object === getTekstObject()) synchroniseerTekst();
+    if (object === getTextObject()) syncText();
 
     if (draaiGreep) {
       draaiGreep.cursor = "grab";
@@ -1056,14 +1060,14 @@ async function newDesign(){
   }
 
   // Start Pixi en voegt het canvas toe aan de pagina.
-  async function maakCanvas() {
-    app = new Application();
+  async function makeCanvas() {
+    app = new Application<Renderer<HTMLCanvasElement>>();
 
     await app.init({
       preference: "canvas",
       width: 800,
       height: 500,
-      background: achtergrondKleur(),
+      background: getBackgroundColor(),
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -1074,14 +1078,14 @@ async function newDesign(){
       return;
     }
 
-    canvasHost.value.appendChild(app.canvas);
+    canvasHost.value?.appendChild(app.canvas);
 
     fotoKader = new Graphics();
     fotoKader.eventMode = "passive";
     app.stage.addChild(fotoKader);
-    app.canvas.addEventListener("wheel", zoomMetMuis, { passive: false });
+    app.canvas.addEventListener("wheel", zoomWithMouse, { passive: false });
     makeCornerBlocks();
-    window.addEventListener("pointermove", tijdensResize, { passive: false });
+    window.addEventListener("pointermove", duringResize, { passive: false });
     window.addEventListener("pointerup", stopResize);
     window.addEventListener("pointercancel", stopResize);
     window.addEventListener("blur", stopResize);
@@ -1090,15 +1094,17 @@ async function newDesign(){
   }
 
   // Laadt de achtergrond onafhankelijk van het logo.
-  async function uploadAchtergrond(event) {
-    const bestand = event.target.files?.[0];
+  async function uploadBackground(event: Event | UploadEvent) {
+    const input = event.target as UploadEvent["target"] | null;
+    if (!input) return;
+    const bestand = input.files?.[0];
 
     if (!bestand || !canvasKlaar.value) return;
 
     const huidigeUpload = ++achtergrondUploadId;
     const objectUrl = URL.createObjectURL(bestand);
 
-    event.target.value = "";
+    input.value = "";
     foutmelding.value = "";
 
     try {
@@ -1109,7 +1115,7 @@ async function newDesign(){
       if (unmounted || huidigeUpload !== achtergrondUploadId) return;
 
       finishProcessing();
-      bewaarToestand();
+      saveState();
       const nieuweSprite = new Sprite(Texture.from(afbeelding));
 
       // Vult het canvas met behoud van de verhoudingen.
@@ -1130,12 +1136,12 @@ async function newDesign(){
       nieuweSprite.cursor = "grab";
 
       nieuweSprite.on("pointerdown", (event) => {
-        startSlepen(event, nieuweSprite);
+        startDrag(event, nieuweSprite);
       });
 
 
       if (achtergrondSprite) {
-        belichtingsBewerking.verwijder("achtergrond");
+        belichtingsBewerking.remove("achtergrond");
         app.stage.removeChild(achtergrondSprite);
         achtergrondSprite.destroy({
           texture: true,
@@ -1146,10 +1152,10 @@ async function newDesign(){
       achtergrondBron = markRaw({ bestand, afbeelding });
       achtergrondBestand = bestand;
       achtergrondSprite = nieuweSprite;
-      belichtingsBewerking.registreer("achtergrond", achtergrondSprite, afbeelding);
+      belichtingsBewerking.register("achtergrond", achtergrondSprite, afbeelding);
       belichtingen.value.achtergrond = 0;
-      resetUploadLaag("achtergrond");
-      pasAchtergrondDonkerteToe();
+      resetUploadLayer("achtergrond");
+      applyBackground();
 
       // Index 0 plaatst de achtergrond onder het logo en de tekst.
       app.stage.addChildAt(achtergrondSprite, 0);
@@ -1167,12 +1173,12 @@ async function newDesign(){
   }
 
   // Laat tekstvelden hun eigen undo houden; sliders gebruiken de editorhistorie.
-  function geschiedenisToets(event) {
+  function historyTouch(event: KeyboardEvent) {
     if (!canvasKlaar.value || conceptBezig.value || event.defaultPrevented ||
         event.isComposing || event.altKey || event.shiftKey ||
         !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
 
-    const doel = event.target;
+    const doel = event.target as HTMLElement | null;
     const invoer = doel?.closest?.("input");
     const tekstInvoer = invoer && !["range", "color", "checkbox", "radio", "button", "submit", "file"].includes(invoer.type);
     if (canvasTekstActief.value || doel?.isContentEditable || tekstInvoer ||
@@ -1184,15 +1190,17 @@ async function newDesign(){
 
 
   // Laadt het logo en zet het passend in het midden.
-  async function uploadFoto(event) {
-    const file = event.target.files?.[0];
+  async function uploadPhoto(event: Event | UploadEvent) {
+    const input = event.target as UploadEvent["target"] | null;
+    if (!input) return;
+    const file = input.files?.[0];
 
     if (!file || !canvasKlaar.value) return;
 
     const huidigeUpload = ++uploadId;
     const objectUrl = URL.createObjectURL(file);
     foutmelding.value = "";
-    event.target.value = "";
+    input.value = "";
 
     try {
       const afbeelding = new Image();
@@ -1205,15 +1213,15 @@ async function newDesign(){
 
       stopResize();
 
-      stopSlepen();
-      stopTekenen();
-      stopKleurWijziging();
-      stopCanvasTekst();
-      bewaarToestand();
+      stopDrag();
+      stopDrawing();
+      stopColorChange();
+      stopCanvasText();
+      saveState();
       geselecteerdType = "afbeelding";
 
       if (fotoSprite) {
-        belichtingsBewerking.verwijder("afbeelding");
+        belichtingsBewerking.remove("afbeelding");
         app.stage.removeChild(fotoSprite);
         fotoSprite.destroy({ texture: true, textureSource: true });
       }
@@ -1222,9 +1230,9 @@ async function newDesign(){
       fileName.value = file.name;
 
       fotoSprite = new Sprite(texture);
-      belichtingsBewerking.registreer("afbeelding", fotoSprite, afbeelding);
+      belichtingsBewerking.register("afbeelding", fotoSprite, afbeelding);
       belichtingen.value.afbeelding = 0;
-      resetUploadLaag("afbeelding");
+      resetUploadLayer("afbeelding");
       fotoSprite.anchor.set(0.5);
       fotoSprite.position.set(app.screen.width / 2, app.screen.height / 2);
 
@@ -1237,12 +1245,13 @@ async function newDesign(){
       fotoSprite.eventMode = "static";
       fotoSprite.cursor = "grab";
 
-      fotoSprite.on("pointerdown", startSlepen);
+      fotoSprite.on("pointerdown", startDrag);
 
       app.stage.addChild(fotoSprite);
-      if (getTekstObject()) app.stage.addChild(getTekstObject());
+      const textObject = getTextObject();
+    if (textObject) app.stage.addChild(textObject);
       app.stage.addChild(fotoKader);
-      kiesPaneel("uploads");
+      selectPanel("uploads");
       sleepBegin = null;
       renderCanvas();
     } catch {
@@ -1256,7 +1265,7 @@ async function newDesign(){
   }
 
   // Verwijdert de afbeelding als herstelbare bewerking.
-  function verwijderFoto() {
+  function deletePhoto() {
     if (!canvasKlaar.value) return;
 
     // Deze actie verwijdert alleen afbeeldingen.
@@ -1268,11 +1277,11 @@ async function newDesign(){
     if (!object) return;
 
     stopResize();
-    stopSlepen();
-    stopTekenen();
-    stopKleurWijziging();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
 
-    bewaarToestand();
+    saveState();
     if (isAchtergrond) {
       achtergrondBron = null;
       achtergrondUploadId++;
@@ -1287,7 +1296,7 @@ async function newDesign(){
       fileName.value = "";
     }
 
-    belichtingsBewerking.verwijder(isAchtergrond ? "achtergrond" : "afbeelding");
+    belichtingsBewerking.remove(isAchtergrond ? "achtergrond" : "afbeelding");
     belichtingen.value[isAchtergrond ? "achtergrond" : "afbeelding"] = 0;
     app.stage.removeChild(object);
     object.destroy({
@@ -1308,16 +1317,16 @@ async function newDesign(){
   }
 
   // Start het verplaatsen van de afbeelding of tekst.
-  function startSlepen(event, object = fotoSprite) {
+  function startDrag(event: FederatedPointerEvent, object: EditableObject | null = fotoSprite) {
 
     const laagId =
         object === achtergrondSprite
             ? "achtergrond"
-            : object === getTekstObject()
+            : object === getTextObject()
                 ? "tekst"
                 : "afbeelding";
 
-    if (!magLaagVerplaatsen(laagId)) return;
+    if (!canMoveLayer(laagId)) return;
 
     if (
       !canvasKlaar.value ||
@@ -1330,10 +1339,10 @@ async function newDesign(){
       return;
     event.stopPropagation();
     event.preventDefault();
-    stopKleurWijziging();
+    stopColorChange();
     if (object === achtergrondSprite) {
       geselecteerdType = "achtergrond";
-    } else if (object === getTekstObject()) {
+    } else if (object === getTextObject()) {
       geselecteerdType = "tekst";
     } else {
       geselecteerdType = "afbeelding";
@@ -1347,7 +1356,7 @@ async function newDesign(){
       pointerId: event.pointerId,
       x: object.x,
       y: object.y,
-      geschiedenis: huidigeToestand(),
+      geschiedenis: getCurrentState(),
     };
     slepen = true;
     object.cursor = "grabbing";
@@ -1360,7 +1369,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  function tijdensSlepen(event) {
+  function duringDrag(event: PointerEvent) {
     const actie = sleepBegin;
 
     if (!slepen || !actie || event.pointerId !== actie.pointerId) {
@@ -1369,7 +1378,7 @@ async function newDesign(){
 
     event.preventDefault();
 
-    const punt = resizePunt(event);
+    const punt = resizePoint(event);
     const object = actie.object;
 
     let x = punt.x - verschil.x;
@@ -1404,12 +1413,12 @@ async function newDesign(){
   }
 
   // Stopt het slepen en bewaart de vorige positie.
-  function stopSlepen(event) {
+  function stopDrag(event?: Event) {
     const actie = sleepBegin;
     if (!actie) return;
-    if (event?.pointerId !== undefined && event.pointerId !== actie.pointerId)
+    if (event && "pointerId" in event && event.pointerId !== actie.pointerId)
       return;
-    if (event?.type === "pointerup") tijdensSlepen(event);
+    if (event?.type === "pointerup") duringDrag(event as PointerEvent);
 
     // Eerst wissen: releasePointerCapture kan opnieuw een stop-event geven.
     sleepBegin = null;
@@ -1418,20 +1427,20 @@ async function newDesign(){
     inspectorsVergrendeld.value = false;
     const object = actie.object;
     if (object.x !== actie.x || object.y !== actie.y) {
-      bewaarToestand(actie.geschiedenis);
+      saveState(actie.geschiedenis);
     }
     object.cursor = "grab";
-    if (object === getTekstObject()) synchroniseerTekst();
+    if (object === getTextObject()) syncText();
     if (app.canvas.hasPointerCapture(actie.pointerId)) {
       app.canvas.releasePointerCapture(actie.pointerId);
     }
   }
 
   // Plaatst het volledige logo, inclusief rotatie, binnen een marge van 32 px.
-  function plaatsLogo(positie) {
-    if (!magLaagVerplaatsen("afbeelding")) return;
+  function placeLogo(positie: string) {
+    if (!canMoveLayer("afbeelding")) return;
 
-    const posities = {
+    const posities: Record<string, [number, number]> = {
       midden: [0.5, 0.5],
       linksboven: [0, 0],
       rechtsboven: [1, 0],
@@ -1439,8 +1448,8 @@ async function newDesign(){
       rechtsonder: [1, 1],
     };
     if (!fotoSprite || !canvasKlaar.value || !posities[positie]) return;
-    kiesPaneel("afbeelding");
-    const vorige = huidigeToestand();
+    selectPanel("afbeelding");
+    const vorige = getCurrentState();
     const marge = 32;
     const cos = Math.abs(Math.cos(fotoSprite.rotation));
     const sin = Math.abs(Math.sin(fotoSprite.rotation));
@@ -1457,68 +1466,68 @@ async function newDesign(){
       marge + breedte / 2 + x * (app.screen.width - 2 * marge - breedte),
       marge + hoogte / 2 + y * (app.screen.height - 2 * marge - hoogte),
     );
-    if (JSON.stringify(vorige) !== JSON.stringify(huidigeToestand())) {
-      bewaarToestand(vorige);
+    if (JSON.stringify(vorige) !== JSON.stringify(getCurrentState())) {
+      saveState(vorige);
     }
     renderCanvas();
   }
 
   // Een grijze tint verduistert uitsluitend de achtergrondfoto.
-  function pasAchtergrondDonkerteToe() {
+  function applyBackground() {
     if (!achtergrondSprite) return;
     const kanaal = Math.round(255 * (1 - achtergrondDonkerte.value / 100));
     achtergrondSprite.tint = (kanaal << 16) | (kanaal << 8) | kanaal;
   }
 
   watch(achtergrondDonkerte, () => {
-    pasAchtergrondDonkerteToe();
+    applyBackground();
     renderCanvas();
   }, { flush: "sync" });
 
   // Draait de afbeelding met het opgegeven aantal graden.
-  function draaiFoto(graden) {
-    const object = getActiefObject();
+  function rotatePhoto(graden: number) {
+    const object = getActiveObject();
     stopResize();
     if (!object || !canvasKlaar.value) return;
 
-    stopSlepen();
-    bewaarToestand();
+    stopDrag();
+    saveState();
 
     object.angle += graden;
     renderCanvas();
   }
 
   // Vergroot of verkleint de afbeelding.
-  function veranderSchaal(factor) {
-    const object = getActiefObject();
+  function changeScale(factor: number) {
+    const object = getActiveObject();
     stopResize();
     if (!object) return;
 
-    stopSlepen();
-    bewaarToestand();
+    stopDrag();
+    saveState();
 
     object.scale.set(object.scale.x * factor, object.scale.y * factor);
     renderCanvas();
   }
 
   // Past de afbeeldingsgrootte aan met het muiswiel.
-  function zoomMetMuis(event) {
-    const object = getActiefObject();
+  function zoomWithMouse(event: WheelEvent) {
+    const object = getActiveObject();
     if (!object || tekenModus.value) return;
 
     event.preventDefault();
     if (resizeActie) return;
-    veranderSchaal(event.deltaY < 0 ? 1.1 : 0.9);
+    changeScale(event.deltaY < 0 ? 1.1 : 0.9);
   }
 
   // Combineert achtergrond, afbeelding en verf tot een PNG-download.
-  function downloadFoto() {
-    stopSlepen();
+  function downloadPhoto() {
+    stopDrag();
     stopResize();
-    stopCanvasTekst();
-    if (!canvasKlaar.value || (!achtergrondIngesteld.value && !fotoSprite && !achtergrondSprite && !getTekstObject())) return;
+    stopCanvasText();
+    if (!canvasKlaar.value || (!achtergrondIngesteld.value && !fotoSprite && !achtergrondSprite && !getTextObject())) return;
 
-    stopTekenen();
+    stopDrawing();
     const kaderWasZichtbaar = fotoKader.visible;
 
     try {
@@ -1529,14 +1538,15 @@ async function newDesign(){
         target: app.stage,
         frame: app.screen.clone(),
         resolution: formaat.breedte / app.screen.width,
-        clearColor: achtergrondKleur(),
+        clearColor: getBackgroundColor(),
       });
       const canvas = document.createElement("canvas");
       canvas.width = formaat.breedte;
       canvas.height = formaat.hoogte;
       const context = canvas.getContext("2d");
-      context.drawImage(bron, 0, 0, canvas.width, canvas.height);
-      context.drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
+      if (!context) throw new Error("Geen 2D-context beschikbaar voor export.");
+      context.drawImage(bron as HTMLCanvasElement, 0, 0, canvas.width, canvas.height);
+      if (verfCanvas.value) context.drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
       const link = document.createElement("a");
 
       // De afzender geeft de bedrijfs- of logonaam mee; de ontvanger hoeft niets in te vullen.
@@ -1567,27 +1577,27 @@ async function newDesign(){
     achtergrondKanalen,
 
     achtergrondVoorbeeld,
-    achtergrondKleur,
-  } = useKleuren();
+    getBackgroundColor,
+  } = useColors();
 
   const {
-    startTekenen,
-    tijdensTekenen,
-    stopTekenen,
-    herstelVerflaag,
-    aantalVerfstreken,
-    leesVerfstreken,
-    laadVerfstreken,
-  } = useVerflaag({
+    startDrawing,
+    continueDrawing,
+    stopDrawing,
+    restorePaintLayer,
+    getPaintStrokeCount,
+    readPaintStrokes,
+    loadPaintStrokes,
+  } = usePaintLayer({
     verfCanvas,
     tekenModus,
     canvasKlaar,
     kwastKleur,
     kwastGrootte,
-    heeftFoto: () => Boolean(fotoSprite),
-    stopSlepen,
-    stopKleurWijziging,
-    bewaarToestand,
+    hasPhoto: () => Boolean(fotoSprite),
+    stopDrag,
+    stopColorChange,
+    saveState,
   });
 
   // Verbindt de tekstbediening met het canvas en de geschiedenis.
@@ -1595,27 +1605,27 @@ async function newDesign(){
     canvasTekstActief,
     canvasTekstInvoer,
     canvasTekstOpmaak,
-    startCanvasTekst,
-    stopCanvasTekst,
+    startCanvasText,
+    stopCanvasText,
     tekstFormulier,
-    pasTekstToe,
-    verwijderTekst,
-    herstelTekst,
-    huidigeTekst,
-    getTekstObject,
-    synchroniseerTekst,
-  } = useTekst({
+    applyText,
+    removeText,
+    restoreText,
+    getCurrentText,
+    getTextObject,
+    syncText,
+  } = useText({
     getApp: () => app,
-    getFotoKader: () => fotoKader,
-    kanBewerken: () =>
+    getPhotoFrame: () => fotoKader,
+    canEdit: () =>
         canvasKlaar.value &&
         !inspectorsVergrendeld.value,
-    voorBewerking: () => kiesPaneel("tekst"),
-    startSlepen,
-    naToepassen: () => {
+    beforeEdit: () => selectPanel("tekst"),
+    startDrag,
+    afterApply: () => {
       geselecteerdType = "tekst";
     },
-    bewaarToestand,
+    saveState,
     renderCanvas,
   });
 
@@ -1632,7 +1642,7 @@ async function newDesign(){
       if (!canvasKlaar.value || bezigMetHerstellen) return;
 
       achtergrondIngesteld.value = true;
-      app.renderer.background.color = achtergrondKleur();
+      app.renderer.background.color = getBackgroundColor();
       renderCanvas();
     },
     { flush: "sync" },
@@ -1643,15 +1653,15 @@ async function newDesign(){
   watch([canvasHost, verfCanvas], ([host, verf], [vorigeHost, vorigeVerf]) => {
     if (unmounted || !canvasKlaar.value || !host || !verf) return;
     if (host !== vorigeHost) host.appendChild(app.canvas);
-    if (verf !== vorigeVerf) herstelVerflaag(aantalVerfstreken());
+    if (verf !== vorigeVerf) restorePaintLayer(getPaintStrokeCount());
     renderCanvas();
   }, { flush: "post" });
 
   // Start de editor zodra de pagina gereed is.
   onMounted(async () => {
     try {
-      await maakCanvas();
-      if (!unmounted) window.addEventListener('keydown', geschiedenisToets);
+      await makeCanvas();
+      if (!unmounted) window.addEventListener('keydown', historyTouch);
       if (!unmounted) await loadConcept();
     } catch (error) {
       console.error("Foto-editor starten mislukt:", error);
@@ -1664,19 +1674,19 @@ async function newDesign(){
     stopResize();
     unmounted = true;
     achtergrondUploadId++;
-    window.removeEventListener("pointermove", tijdensResize);
+    window.removeEventListener("pointermove", duringResize);
     window.removeEventListener("pointerup", stopResize);
-    window.removeEventListener('keydown', geschiedenisToets);
+    window.removeEventListener('keydown', historyTouch);
     window.removeEventListener("pointercancel", stopResize);
     window.removeEventListener("blur", stopResize);
     uploadId++;
-    stopTekenen();
+    stopDrawing();
 
-    belichtingsBewerking.ruimOp();
-    logoVoorbeeld.werkBij(null);
-    achtergrondUploadVoorbeeld.werkBij(null);
+    belichtingsBewerking.dispose();
+    logoVoorbeeld.update(null);
+    achtergrondUploadVoorbeeld.update(null);
     if (canvasKlaar.value) {
-      app.canvas.removeEventListener("wheel", zoomMetMuis);
+      app.canvas.removeEventListener("wheel", zoomWithMouse);
       app.canvas.removeEventListener("lostpointercapture", stopResize);
       app.destroy(true, { children: true, texture: true, textureSource: true });
     }
@@ -1692,58 +1702,58 @@ async function newDesign(){
     canvasTekstActief,
     canvasTekstInvoer,
     canvasTekstOpmaak,
-    startCanvasTekst,
-    stopCanvasTekst,
+    startCanvasText,
+    stopCanvasText,
     lagen,
     geselecteerdeLaag,
-    selecteerLaag,
-    verwijderLaag,
-    wisselLaagZichtbaarheid,
-    wisselLaagVergrendeling,
-    plaatsLogo,
+    selectLayer,
+    removeLayer,
+    toggleLayerVisibility,
+    toggleLayerLock,
+    placeLogo,
     achtergrondDonkerte,
     achtergrondIngesteld,
     achtergrondBestandsnaam,
-    uploadAchtergrond,
+    uploadBackground,
     fileName,
     geschiedenis,
-    ongedaanMaken: undo,
-    downloadFoto,
+    undo,
+    downloadPhoto,
     panelen,
     actiefPaneel,
-    kiesPaneel,
+    selectPanel,
     canvasKlaar,
     bestandInput,
-    uploadFoto,
-    veranderSchaal,
-    draaiFoto,
-    startKleurWijziging,
-    stopKleurWijziging,
-    verwijderFoto,
+    uploadPhoto,
+    changeScale,
+    rotatePhoto,
+    startColorChange,
+    stopColorChange,
+    deletePhoto,
     tekenModus,
-    wisselKwast,
+    toggleBrush,
     kwastKleur,
     kwastPalet,
     kwastGrootte,
     belichtingWaarde,
     belichtingBeschikbaar,
-    veranderBelichting: changeLightning,
-    resetBelichting,
+    changeLighting,
+    resetLighting,
     achtergrondVoorbeeld,
     achtergrondKanalen,
-    kiesAchtergrondKleur,
+    selectBackgroundColor,
     foutmelding,
     middenlijnen,
     canvasHost,
-    nieuwOntwerp: newDesign,
-    slaConceptOp: saveConcept,
+    newDesign,
+    saveConcept,
     verfCanvas,
-    startTekenen,
-    tijdensTekenen,
-    stopTekenen,
+    startDrawing,
+    continueDrawing,
+    stopDrawing,
     tekstFormulier,
-    pasTekstToe,
-    verwijderTekst,
+    applyText,
+    removeText,
     inspectorsVergrendeld,
   };
 }

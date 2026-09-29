@@ -1,42 +1,42 @@
 <script setup>
 import { nextTick, ref } from "vue";
-import TekstEditor from "./TekstEditor.vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import TextEditor from "./TextEditor.vue";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  startCanvasTekst,
-  stopCanvasTekst,
+  startCanvasText,
+  stopCanvasText,
   canvasTekstActief,
   tekstFormulier,
-  pasTekstToe,
-  verwijderTekst,
+  applyText,
+  removeText,
 } = usePhotoStylerContext();
 
 const tekstEditor = ref(null);
 
-async function toepassen() {
-  stopCanvasTekst();
-  pasTekstToe();
+async function applyChanges() {
+  stopCanvasText();
+  applyText();
   await nextTick();
-  tekstEditor.value?.resetSelectie();
+  tekstEditor.value?.resetSelection();
 }
 
-function voorOpmaak() {
+function beforeFormatting() {
   const canvasWasActief = canvasTekstActief.value;
-  stopCanvasTekst();
-  if (canvasWasActief) tekstEditor.value?.resetSelectie();
+  stopCanvasText();
+  if (canvasWasActief) tekstEditor.value?.resetSelection();
 }
 </script>
 <template>
   <div class="tekstinstellingen">
-    <button type="button" @click="startCanvasTekst">
+    <button type="button" @click="startCanvasText">
       Typ op het canvas
     </button>
 
-    <TekstEditor
+    <TextEditor
         ref="tekstEditor"
         v-model="tekstFormulier"
-        @voor-opmaak="voorOpmaak"
+        @voor-opmaak="beforeFormatting"
     />
 
     <p class="kleine-tekst">
@@ -136,12 +136,12 @@ function voorOpmaak() {
       <button
           type="button"
           :disabled="!tekstFormulier.inhoud.trim()"
-          @click="toepassen"
+          @click="applyChanges"
       >
         Tekst toepassen
       </button>
 
-      <button type="button" @click="verwijderTekst">
+      <button type="button" @click="removeText">
         Tekst wissen
       </button>
     </div>

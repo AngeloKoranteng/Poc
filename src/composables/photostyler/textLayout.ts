@@ -1,6 +1,8 @@
+import type { TextStyleOptions } from "pixi.js";
+import type { TextContent } from "./types.ts";
 // Elke letter krijgt een getal:
 // 0 = normaal, 1 = vet, 2 = cursief, 3 = beide.
-export function leesOpmaak(tekst) {
+export function readFormatting(tekst: TextContent) {
     const standaard = (tekst.vet ? 1 : 0) | (tekst.cursief ? 2 : 0);
 
     return Array.from(
@@ -10,9 +12,9 @@ export function leesOpmaak(tekst) {
 }
 
 // Houdt opmaak bij de bestaande letters wanneer je tekst wijzigt.
-export function wijzigInhoud(tekst, inhoud) {
+export function updateContent<T extends TextContent>(tekst: T, inhoud: string) {
     const vorige = tekst.inhoud;
-    const opmaak = leesOpmaak(tekst);
+    const opmaak = readFormatting(tekst);
     let begin = 0;
     let eindeOud = vorige.length;
     let eindeNieuw = inhoud.length;
@@ -48,14 +50,14 @@ export function wijzigInhoud(tekst, inhoud) {
 }
 
 // Zet de letters om naar tekst met PixiJS-opmaaktags.
-export function maakCanvasTekst(tekst) {
-    const opmaak = leesOpmaak(tekst);
+export function createCanvasText(tekst: TextContent) {
+    const opmaak = readFormatting(tekst);
 
     // Voorkomt dat zelf getypte tags als opmaak worden behandeld.
     let prefix = "letterstijl";
     while (tekst.inhoud.includes(prefix)) prefix += "_";
 
-    const tagStyles = {};
+    const tagStyles: Record<string, Partial<TextStyleOptions>> = {};
     for (let waarde = 0; waarde < 4; waarde++) {
         tagStyles[`${prefix}${waarde}`] = {
             fontWeight: waarde & 1 ? "bold" : "normal",

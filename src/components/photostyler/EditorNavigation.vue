@@ -1,7 +1,7 @@
 <script setup>
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { panelen, actiefPaneel, kiesPaneel } = usePhotoStylerContext();
+const { panelen, actiefPaneel, selectPanel } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -16,7 +16,7 @@ const { panelen, actiefPaneel, kiesPaneel } = usePhotoStylerContext();
       type="button"
       :class="{ actief: actiefPaneel === paneel.id }"
       :aria-pressed="actiefPaneel === paneel.id"
-      @click="kiesPaneel(paneel.id)"
+      @click="selectPanel(paneel.id)"
     >
       <svg
         viewBox="0 0 24 24"

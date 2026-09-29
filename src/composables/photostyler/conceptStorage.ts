@@ -1,12 +1,16 @@
+import type { Draft } from "./types.ts";
 // Eén bewerkbaar concept per browser en website. Blobs blijven lokaal.
 const DATABASE = "photostyler";
 const OPSLAG = "concepten";
 const SLEUTEL = "huidig";
 let transactieNummer = 0;
 
-function logConcept(log, concept) {
-  for (const veld of ["foto", "achtergrond"]) {
-    const bestand = concept[veld];
+// Type-definitie voor de logfunctie zodat TypeScript weet hoe deze aangeroepen mag worden
+type LogFunctie = (bericht: string, ...gegevens: unknown[]) => void;
+
+function logDraft(log: LogFunctie, concept: Draft) {
+  for (const veld of ["foto", "achtergrond"] as const) {
+    const bestand = concept[veld] as File | undefined;
     if (!bestand) {
       log(`${veld}: geen bestand opgeslagen.`);
       continue;
@@ -23,16 +27,18 @@ function logConcept(log, concept) {
   log("Verfstreken:", concept.verfstreken);
 }
 
-export async function conceptTransactie(actie, concept) {
+export async function draftTransaction(actie: "lezen" | "schrijven" | "verwijderen" | string, concept?: Draft) {
   const prefix = `[Concept ${++transactieNummer} · ${actie}]`;
-  const log = (bericht, ...gegevens) => console.info(prefix, bericht, ...gegevens);
-  let db;
+  const log: LogFunctie = (bericht, ...gegevens) => console.info(prefix, bericht, ...gegevens);
+
+  // Door hier expliciet 'IDBDatabase' op te geven, verdwijnt de foutmelding bij db.close()
+  let db: IDBDatabase | undefined;
 
   try {
     log("1. Open IndexedDB. De opslag hoort bij dit websiteadres in deze browser.", {
       database: DATABASE, opslag: OPSLAG, sleutel: SLEUTEL,
     });
-    db = await new Promise((resolve, reject) => {
+    db = await new Promise<IDBDatabase>((resolve, reject) => {
       const aanvraag = indexedDB.open(DATABASE, 1);
       aanvraag.onupgradeneeded = () => {
         log("Eerste gebruik: maak de object store 'concepten' aan.");
@@ -44,7 +50,7 @@ export async function conceptTransactie(actie, concept) {
     });
     log("2. Database geopend.");
 
-    return await new Promise((resolve, reject) => {
+    return await new Promise<Draft | undefined>((resolve, reject) => {
       const lezen = actie === "lezen";
       const verwijderen = actie === "verwijderen";
 
@@ -53,20 +59,22 @@ export async function conceptTransactie(actie, concept) {
         return;
       }
 
-      const transactie = db.transaction(
+      // TypeScript weet nu 100% zeker dat db bestaat dankzij de eerdere Promise
+      const transactie = db!.transaction(
           OPSLAG,
           lezen ? "readonly" : "readwrite",
       );
       const opslag = transactie.objectStore(OPSLAG);
 
-      let aanvraag;
+      let aanvraag: IDBRequest;
 
       if (lezen) {
         aanvraag = opslag.get(SLEUTEL);
       } else if (verwijderen) {
         aanvraag = opslag.delete(SLEUTEL);
       } else {
-        logConcept(log, concept);
+        if (!concept) { reject(new Error("Geen concept om op te slaan.")); return; }
+        logDraft(log, concept);
         aanvraag = opslag.put(concept, SLEUTEL);
       }
 

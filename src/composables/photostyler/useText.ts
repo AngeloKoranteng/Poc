@@ -1,19 +1,31 @@
+import type { Application, Graphics, FederatedPointerEvent } from "pixi.js";
+import type { EditableObject, TextState, TextForm } from "./types.ts";
+interface TextOptions {
+  getApp: () => Application;
+  getPhotoFrame: () => Graphics;
+  canEdit: () => boolean;
+  beforeEdit: () => void;
+  saveState: () => void;
+  renderCanvas: () => void;
+  startDrag: (event: FederatedPointerEvent, object: EditableObject) => void;
+  afterApply: () => void;
+}
 import { ref } from "vue";
 import { Text } from "pixi.js";
-import { leesOpmaak, maakCanvasTekst } from "./tekstOpmaak.js";
+import { readFormatting, createCanvasText } from "./textLayout.ts";
 
-export function useTekst({
+export function useText({
   getApp,
-  getFotoKader,
-  kanBewerken,
-  voorBewerking,
-  bewaarToestand,
+  getPhotoFrame,
+  canEdit,
+  beforeEdit,
+  saveState,
   renderCanvas,
-  startSlepen,
-  naToepassen,
-}) {
+  startDrag,
+  afterApply,
+}: TextOptions) {
   // Beginwaarden voor één tekstblok op het canvas.
-  const standaardTekst = {
+  const standaardTekst: TextState = {
     inhoud: "",
     kleur: "#172e2b",
     grootte: 36,
@@ -26,19 +38,19 @@ export function useTekst({
   };
 
   // Houdt invoer apart van de tekst die daadwerkelijk is toegepast.
-  const tekstFormulier = ref({ ...standaardTekst });
+  const tekstFormulier = ref<TextForm>({ ...standaardTekst });
   const canvasTekstActief = ref(false);
   const canvasTekstInvoer = ref("");
-  const canvasTekstOpmaak = ref({ ...standaardTekst });
-  let formulierVoorCanvas = null;
+  const canvasTekstOpmaak = ref<Omit<TextForm, "grootte"> & { grootte: number }>({ ...standaardTekst });
+  let formulierVoorCanvas: TextForm | null = null;
 
-  function startCanvasTekst() {
-    if (!kanBewerken() || canvasTekstActief.value) return;
-    voorBewerking();
+  function startCanvasText() {
+    if (!canEdit() || canvasTekstActief.value) return;
+    beforeEdit();
     formulierVoorCanvas = { ...tekstFormulier.value };
-    const tekst = huidigeTekst() ?? {
+    const tekst = getCurrentText() ?? {
       ...tekstFormulier.value,
-      grootte: begrens(tekstFormulier.value.grootte, 8, 160, 36),
+      grootte: clamp(tekstFormulier.value.grootte, 8, 160, 36),
     };
     canvasTekstOpmaak.value = { ...tekst };
     canvasTekstInvoer.value = tekst.inhoud;
@@ -46,7 +58,7 @@ export function useTekst({
     renderCanvas();
   }
 
-  function stopCanvasTekst(opslaan = true) {
+  function stopCanvasText(opslaan = true) {
     if (!canvasTekstActief.value) return;
     canvasTekstActief.value = false;
     if (opslaan) {
@@ -54,20 +66,20 @@ export function useTekst({
         ...canvasTekstOpmaak.value,
         inhoud: canvasTekstInvoer.value,
       };
-      if (canvasTekstInvoer.value.trim()) pasTekstToe();
-      else verwijderTekst();
+      if (canvasTekstInvoer.value.trim()) applyText();
+      else removeText();
     } else {
-      tekstFormulier.value = { ...formulierVoorCanvas };
+      tekstFormulier.value = { ...(formulierVoorCanvas ?? standaardTekst) };
     }
     formulierVoorCanvas = null;
     renderCanvas();
   }
 
-  let toegepasteTekst = null;
-  let tekstObject = null;
+  let toegepasteTekst: TextState | null = null;
+  let tekstObject: Text | null = null;
 
   // Begrenst numerieke invoer en vangt lege velden op.
-  function begrens(waarde, minimum, maximum, standaard) {
+  function clamp(waarde: unknown, minimum: number, maximum: number, standaard: number) {
     if (waarde === "" || waarde === null) return standaard;
 
     const getal = Number(waarde);
@@ -78,7 +90,7 @@ export function useTekst({
   }
 
   // Herstelt tekst zonder een nieuwe geschiedenisstap te maken.
-  function herstelTekst(toestand) {
+  function restoreText(toestand: TextState | null) {
     toegepasteTekst = toestand;
     tekstFormulier.value = { ...(toestand ?? standaardTekst) };
 
@@ -99,17 +111,17 @@ export function useTekst({
       tekstObject.eventMode = "static";
       tekstObject.cursor = "grab";
       tekstObject.on("pointerdown", (event) => {
-        startSlepen(event, tekstObject);
+        if (tekstObject) startDrag(event, tekstObject);
       });
 
       const app = getApp();
       app.stage.addChild(tekstObject);
 
       // Houdt de fotogrepen boven de tekst.
-      app.stage.addChild(getFotoKader());
+      app.stage.addChild(getPhotoFrame());
     }
 
-   const canvasTekst = maakCanvasTekst(toestand);
+   const canvasTekst = createCanvasText(toestand);
     tekstObject.text = canvasTekst.text;
     tekstObject.style = {
       fontFamily: toestand.lettertype ?? "Arial",
@@ -129,24 +141,24 @@ export function useTekst({
   }
 
   // Past de invoer toe als één bewerking voor Ongedaan maken.
-  function pasTekstToe() {
-    if (!kanBewerken()) return;
+  function applyText() {
+    if (!canEdit()) return;
 
     const formulier = tekstFormulier.value;
     const inhoud = formulier.inhoud;
 
     if (!inhoud.trim()) return;
 
-    voorBewerking();
+    beforeEdit();
 
     const volgende = {
       inhoud,
-      opmaak: leesOpmaak(formulier),
+      opmaak: readFormatting(formulier),
       kleur: formulier.kleur,
       lettertype: formulier.lettertype ?? "Arial",
       vet: !!formulier.vet,
       cursief: !!formulier.cursief,
-      grootte: begrens(formulier.grootte, 8, 160, 36),
+      grootte: clamp(formulier.grootte, 8, 160, 36),
       // Slepen mag de tekst ook gedeeltelijk buiten het canvas plaatsen.
       x:
         Number.isFinite(Number(formulier.x)) && formulier.x !== ""
@@ -161,32 +173,32 @@ export function useTekst({
       hoek: tekstObject?.angle ?? 0,
     };
 
-    if (JSON.stringify(volgende) === JSON.stringify(huidigeTekst())) {
+    if (JSON.stringify(volgende) === JSON.stringify(getCurrentText())) {
       return;
     }
 
-    bewaarToestand();
-    herstelTekst(volgende);
-    naToepassen();
+    saveState();
+    restoreText(volgende);
+    afterApply();
     renderCanvas();
   }
 
   // Verwijdert de tekst en maakt dit ongedaan te maken.
-  function verwijderTekst() {
-    if (!kanBewerken()) return;
+  function removeText() {
+    if (!canEdit()) return;
 
-    voorBewerking();
+    beforeEdit();
 
     if (toegepasteTekst) {
-      bewaarToestand();
+      saveState();
     }
 
-    herstelTekst(null);
+    restoreText(null);
     renderCanvas();
   }
 
   // Leest ook de actuele transformatie voor de bewerkingsgeschiedenis.
-  function huidigeTekst() {
+  function getCurrentText() {
     if (!toegepasteTekst || !tekstObject) return null;
     return {
       ...toegepasteTekst,
@@ -199,7 +211,7 @@ export function useTekst({
   }
 
   // Houdt de invoervelden gelijk aan de positie na het verslepen.
-  function synchroniseerTekst() {
+  function syncText() {
     if (!tekstObject) return;
     tekstFormulier.value.x = tekstObject.x;
     tekstFormulier.value.y = tekstObject.y;
@@ -209,14 +221,14 @@ export function useTekst({
     canvasTekstActief,
     canvasTekstInvoer,
     canvasTekstOpmaak,
-    startCanvasTekst,
-    stopCanvasTekst,
+    startCanvasText,
+    stopCanvasText,
     tekstFormulier,
-    pasTekstToe,
-    verwijderTekst,
-    herstelTekst,
-    huidigeTekst,
-    synchroniseerTekst,
-    getTekstObject: () => tekstObject,
+    applyText,
+    removeText,
+    restoreText,
+    getCurrentText,
+    syncText,
+    getTextObject: () => tekstObject,
   };
 }

@@ -1,11 +1,11 @@
 <script setup>
-import CanvasTekstInvoer from "./CanvasTekstInvoer.vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import CanvaTextInput from "./canvaTextInput.vue";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
   middenlijnen,
   canvasTekstActief,
-  startCanvasTekst,
+  startCanvasText,
   tekenModus,
   foutmelding,
   canvasHost,
@@ -14,15 +14,15 @@ const {
   geselecteerdeLaag,
   inspectorsVergrendeld,
   verfCanvas,
-  startTekenen,
-  tijdensTekenen,
-  stopTekenen,
+  startDrawing,
+  continueDrawing,
+  stopDrawing,
   fileName,
   canvasKlaar,
   achtergrondBestandsnaam,
   achtergrondVoorbeeld,
   achtergrondIngesteld,
-  kiesPaneel,
+  selectPanel,
   bestandInput,
 } = usePhotoStylerContext();
 </script>
@@ -50,7 +50,7 @@ const {
         <div
           class="canvas-host"
           :class="{ 'kwast-actief': tekenModus }"
-          @dblclick="geselecteerdeLaag === 'tekst' && !tekenModus && startCanvasTekst()"
+          @dblclick="geselecteerdeLaag === 'tekst' && !tekenModus && startCanvasText()"
         >
           <div ref="canvasHost"></div>
           <canvas
@@ -59,11 +59,11 @@ const {
             width="800"
             height="500"
             aria-label="Verflaag: teken met de kwast op de afbeelding"
-            @pointerdown="startTekenen"
-            @pointermove="tijdensTekenen"
-            @pointerup="stopTekenen"
-            @pointercancel="stopTekenen"
-            @lostpointercapture="stopTekenen"
+            @pointerdown="startDrawing"
+            @pointermove="continueDrawing"
+            @pointerup="stopDrawing"
+            @pointercancel="stopDrawing"
+            @lostpointercapture="stopDrawing"
           />
           <div
               v-if="!achtergrondIngesteld && !fileName && !achtergrondBestandsnaam && !canvasTekstActief && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
@@ -83,14 +83,14 @@ const {
               type="button"
               :disabled="!canvasKlaar"
               @click="
-                kiesPaneel('uploads');
+                selectPanel('uploads');
                 bestandInput?.click();
               "
             >
               Afbeelding toevoegen
             </button>
           </div>
-          <CanvasTekstInvoer />
+          <CanvaTextInput />
           <div v-if="middenlijnen.verticaal" class="middenlijn middenlijn-verticaal" aria-hidden="true"></div>
           <div v-if="middenlijnen.horizontaal" class="middenlijn middenlijn-horizontaal" aria-hidden="true"></div>
         </div>

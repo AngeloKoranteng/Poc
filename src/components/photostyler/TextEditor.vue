@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { leesOpmaak } from "../../composables/photostyler/tekstOpmaak.js";
+import { readFormatting } from "../../composables/photostyler/textLayout.ts";
 
 const props = defineProps({ modelValue: { type: Object, required: true } });
 const emit = defineEmits(["update:modelValue", "voor-opmaak"]);
@@ -10,11 +10,11 @@ const cursief = ref(false);
 let selectie = null;
 let laatsteWaarde = "";
 
-function sleutel(tekst) {
-  return JSON.stringify([tekst.inhoud, leesOpmaak(tekst)]);
+function getTextKey(tekst) {
+  return JSON.stringify([tekst.inhoud, readFormatting(tekst)]);
 }
 
-function bewaarSelectie() {
+function saveSelection() {
   const gekozen = window.getSelection();
   if (!gekozen?.rangeCount) return;
   const bereik = gekozen.getRangeAt(0);
@@ -24,7 +24,7 @@ function bewaarSelectie() {
   cursief.value = document.queryCommandState("italic");
 }
 
-function herstelSelectie() {
+function restoreSelection() {
   // Een cursor opnieuw plaatsen wist in sommige browsers de gekozen typstijl.
   const huidige = window.getSelection();
   if (document.activeElement === veld.value && huidige?.rangeCount &&
@@ -40,16 +40,16 @@ function herstelSelectie() {
   gekozen.addRange(selectie);
 }
 
-function leesVeld() {
+function readField() {
   let inhoud = "";
   const opmaak = [];
-  function voegToe(tekst, stijl) {
+  function appendText(tekst, stijl) {
     inhoud += tekst;
     opmaak.push(...Array(tekst.length).fill(stijl));
   }
-  function lees(node, stijl = 0) {
+  function readNode(node, stijl = 0) {
     if (node.nodeType === Node.TEXT_NODE) {
-      voegToe(node.textContent, stijl);
+      appendText(node.textContent, stijl);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -60,43 +60,43 @@ function leesVeld() {
     if (node.style.fontStyle === "normal") stijl &= ~2;
     if (node.tagName === "BR") {
       // Een laatste br is de lege invoerregel van de browser.
-      if (node.nextSibling) voegToe("\n", stijl);
+      if (node.nextSibling) appendText("\n", stijl);
       return;
     }
     let vorigBlok = false;
     Array.from(node.childNodes).forEach((kind, index) => {
       const blok = kind.nodeType === Node.ELEMENT_NODE && kind.matches("div, p");
-      if (index > 0 && (blok || vorigBlok)) voegToe("\n", stijl);
-      lees(kind, stijl);
+      if (index > 0 && (blok || vorigBlok)) appendText("\n", stijl);
+      readNode(kind, stijl);
       vorigBlok = blok;
     });
   }
-  lees(veld.value);
+  readNode(veld.value);
   return { ...props.modelValue, inhoud, opmaak };
 }
 
-function synchroniseer() {
-  const tekst = leesVeld();
+function syncContent() {
+  const tekst = readField();
   // Ook plakken en invoer via een mobiel toetsenbord respecteren de limiet.
   if (tekst.inhoud.length > 500) {
     tekst.inhoud = tekst.inhoud.slice(0, 500);
     tekst.opmaak = tekst.opmaak.slice(0, 500);
-    toonTekst(tekst);
-    herstelSelectie();
+    renderText(tekst);
+    restoreSelection();
   }
-  laatsteWaarde = sleutel(tekst);
+  laatsteWaarde = getTextKey(tekst);
   emit("update:modelValue", tekst);
-  bewaarSelectie();
+  saveSelection();
 }
 
-async function wisselOpmaak(opdracht) {
+async function toggleFormatting(opdracht) {
   // Eerst eventuele tekstinvoer op het canvas afronden: die mag de nieuwe
   // formulieropmaak niet later overschrijven wanneer het canvas focus verliest.
   emit("voor-opmaak");
   await nextTick();
-  herstelSelectie();
+  restoreSelection();
   const gekozen = window.getSelection();
-  const heelBlok = gekozen.isCollapsed && leesVeld().inhoud.length > 0;
+  const heelBlok = gekozen.isCollapsed && readField().inhoud.length > 0;
   if (heelBlok) {
     const bereik = document.createRange();
     bereik.selectNodeContents(veld.value);
@@ -106,36 +106,36 @@ async function wisselOpmaak(opdracht) {
   // De browser bewaart hierbij zowel de typstijl als de lokale undo-geschiedenis.
   document.execCommand(opdracht);
   if (heelBlok) gekozen.collapseToEnd();
-  synchroniseer();
+  syncContent();
 }
 
-function resetSelectie() {
+function resetSelection() {
   selectie = null;
-  const opmaak = leesOpmaak(props.modelValue);
+  const opmaak = readFormatting(props.modelValue);
   vet.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 1) !== 0);
   cursief.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 2) !== 0);
 }
 
-defineExpose({ resetSelectie });
+defineExpose({ resetSelection });
 
-function plak(event) {
+function handlePaste(event) {
   event.preventDefault();
   const gekozen = window.getSelection()?.toString().length ?? 0;
-  const ruimte = Math.max(0, 500 - leesVeld().inhoud.length + gekozen);
+  const ruimte = Math.max(0, 500 - readField().inhoud.length + gekozen);
   const tekst = event.clipboardData.getData("text/plain").slice(0, ruimte);
   document.execCommand("insertText", false, tekst);
-  synchroniseer();
+  syncContent();
 }
 
-function voorInvoer(event) {
+function beforeInput(event) {
   if (event.isComposing || !event.inputType.startsWith("insert")) return;
   const gekozen = window.getSelection()?.toString().length ?? 0;
-  if (leesVeld().inhoud.length - gekozen >= 500) event.preventDefault();
+  if (readField().inhoud.length - gekozen >= 500) event.preventDefault();
 }
 
-function toonTekst(tekst) {
+function renderText(tekst) {
   if (!veld.value) return;
-  const opmaak = leesOpmaak(tekst);
+  const opmaak = readFormatting(tekst);
   const fragment = document.createDocumentFragment();
   for (let begin = 0; begin < tekst.inhoud.length;) {
     let einde = begin + 1;
@@ -151,28 +151,28 @@ function toonTekst(tekst) {
   selectie = null;
   vet.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 1) !== 0);
   cursief.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 2) !== 0);
-  laatsteWaarde = sleutel(tekst);
+  laatsteWaarde = getTextKey(tekst);
 }
 
-watch(() => sleutel(props.modelValue), (waarde) => {
-  if (waarde !== laatsteWaarde) toonTekst(props.modelValue);
+watch(() => getTextKey(props.modelValue), (waarde) => {
+  if (waarde !== laatsteWaarde) renderText(props.modelValue);
 });
 
 onMounted(() => {
-  toonTekst(props.modelValue);
-  document.addEventListener("selectionchange", bewaarSelectie);
+  renderText(props.modelValue);
+  document.addEventListener("selectionchange", saveSelection);
 });
-onBeforeUnmount(() => document.removeEventListener("selectionchange", bewaarSelectie));
+onBeforeUnmount(() => document.removeEventListener("selectionchange", saveSelection));
 </script>
 
 <template>
   <div class="tekstveld">
     <span>Jouw tekst</span>
     <div class="tekstopmaak" role="group" aria-label="Tekstopmaak">
-      <button type="button" :aria-pressed="vet" @mousedown.prevent @click="wisselOpmaak('bold')">
+      <button type="button" :aria-pressed="vet" @mousedown.prevent @click="toggleFormatting('bold')">
         <strong>Vet</strong>
       </button>
-      <button type="button" :aria-pressed="cursief" @mousedown.prevent @click="wisselOpmaak('italic')">
+      <button type="button" :aria-pressed="cursief" @mousedown.prevent @click="toggleFormatting('italic')">
         <em>Cursief</em>
       </button>
     </div>
@@ -185,13 +185,13 @@ onBeforeUnmount(() => document.removeEventListener("selectionchange", bewaarSele
       aria-multiline="true"
       :style="{ fontFamily: modelValue.lettertype ?? 'Arial' }"
       data-placeholder="Bijvoorbeeld: Samen voor onze club!"
-      @beforeinput="voorInvoer"
-      @input="synchroniseer"
-      @paste="plak"
+      @beforeinput="beforeInput"
+      @input="syncContent"
+      @paste="handlePaste"
       @drop.prevent
       @keydown.stop
-      @mouseup="bewaarSelectie"
-      @keyup="bewaarSelectie"
+      @mouseup="saveSelection"
+      @keyup="saveSelection"
     ></div>
   </div>
 </template>

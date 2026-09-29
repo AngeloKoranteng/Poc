@@ -1,17 +1,17 @@
 <script setup>
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const { canvasKlaar,
-    nieuwOntwerp,
+    newDesign,
   conceptBezig,
-  slaConceptOp,
+  saveConcept,
   achtergrondIngesteld,
   lagen,
   fileName,
   achtergrondBestandsnaam,
   geschiedenis,
-  ongedaanMaken,
-  downloadFoto } = usePhotoStylerContext();
+  undo,
+  downloadPhoto } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -31,7 +31,7 @@ const { canvasKlaar,
        type="button"
        :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
        title="Bewaar een bewerkbaar concept in deze browser"
-       @click="slaConceptOp"
+       @click="saveConcept"
        >
        {{ conceptBezig ? "Even wachten..." : "Concept opslaan" }}
      </button>
@@ -41,7 +41,7 @@ const { canvasKlaar,
         type="button"
         :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
         title="Wis het huidige ontwerp en begin met leeg canvas"
-        @click="nieuwOntwerp"
+        @click="newDesign"
         >
         <svg viewbox="0 0 24 24" aria-hidden="true">
           <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/>
@@ -52,7 +52,7 @@ const { canvasKlaar,
       <button
         class="undo"
         type="button"
-        @click="ongedaanMaken"
+        @click="undo"
         title="Ongedaan maken (Ctrl+Z / Cmd+Z)"
         aria-keyshortcuts="Control+Z Meta+Z"
         :disabled="geschiedenis.length === 0"
@@ -69,7 +69,7 @@ const { canvasKlaar,
       <button
         class="download"
         type="button"
-        @click="downloadFoto"
+        @click="downloadPhoto"
         :disabled="!achtergrondIngesteld && !fileName && !achtergrondBestandsnaam && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
       >
         <svg

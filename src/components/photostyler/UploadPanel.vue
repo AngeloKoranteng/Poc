@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
-import UploadActies from "./UploadActies.vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import UploadAction from "./UploadAction.vue";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
   actiefPaneel,
@@ -10,13 +10,13 @@ const {
   logoVoorbeeldUrl,
   achtergrondUploadVoorbeeldUrl,
   bestandInput,
-  uploadFoto,
+  uploadPhoto,
   achtergrondBestandsnaam,
-  uploadAchtergrond,
+  uploadBackground,
 } = usePhotoStylerContext();
 const achtergrondInput = ref(null);
 
-function ontvangBestand(event, upload) {
+function receiveFile(event, upload) {
   if (!canvasKlaar.value) return;
   const bestanden = event.dataTransfer?.files;
   if (!bestanden?.length) return;
@@ -38,7 +38,7 @@ function ontvangBestand(event, upload) {
         :disabled="!canvasKlaar"
         @click="bestandInput?.click()"
         @dragover.prevent
-        @drop.prevent="ontvangBestand($event, uploadFoto)"
+        @drop.prevent="receiveFile($event, uploadPhoto)"
     >
       <img
         v-if="logoVoorbeeldUrl"
@@ -60,7 +60,7 @@ function ontvangBestand(event, upload) {
           type="file"
           accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
           :disabled="!canvasKlaar"
-          @change="uploadFoto"
+          @change="uploadPhoto"
       />
 
 
@@ -69,7 +69,7 @@ function ontvangBestand(event, upload) {
       <span>{{ fileName }}</span>
     </div>
 
-    <UploadActies laag-id="afbeelding" />
+    <UploadAction laag-id="afbeelding" />
 
     <h3>Achtergrond</h3>
 
@@ -79,7 +79,7 @@ function ontvangBestand(event, upload) {
         :disabled="!canvasKlaar"
         @click="achtergrondInput?.click()"
         @dragover.prevent
-        @drop.prevent="ontvangBestand($event, uploadAchtergrond)"
+        @drop.prevent="receiveFile($event, uploadBackground)"
     >
       <img
         v-if="achtergrondUploadVoorbeeldUrl"
@@ -105,7 +105,7 @@ function ontvangBestand(event, upload) {
           type="file"
           accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
           :disabled="!canvasKlaar"
-          @change="uploadAchtergrond"
+          @change="uploadBackground"
       />
 
 
@@ -113,7 +113,7 @@ function ontvangBestand(event, upload) {
       <span class="statusstip"></span>
       <span>{{ achtergrondBestandsnaam }}</span>
     </div>
-    <UploadActies laag-id="achtergrond" />
+    <UploadAction laag-id="achtergrond" />
 
   </section>
 </template>

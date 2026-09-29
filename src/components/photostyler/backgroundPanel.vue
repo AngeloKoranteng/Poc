@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
-import KleurSliders from "./KleurSliders.vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import ColorSliders from "./colorSliders.vue";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
   actiefPaneel,
@@ -9,9 +9,9 @@ const {
   canvasKlaar,
   achtergrondKanalen,
   kwastPalet,
-  startKleurWijziging,
-  stopKleurWijziging,
-  kiesAchtergrondKleur,
+  startColorChange,
+  stopColorChange,
+  selectBackgroundColor,
 } = usePhotoStylerContext();
 
 // Zet de huidige RGB-waarden om naar een hexkleur.
@@ -25,14 +25,14 @@ const gekozenKleur = computed(() =>
 );
 
 
-function pasHexkleurToe(event) {
+function applyHexColor(event) {
   const veld = event.target;
 
   if (!veld.checkValidity()) {
     veld.reportValidity();
     return;
   }
-  kiesAchtergrondKleur(veld.value.toLowerCase());
+  selectBackgroundColor(veld.value.toLowerCase());
   veld.value = gekozenKleur.value.toUpperCase();
 }
 
@@ -63,9 +63,9 @@ function pasHexkleurToe(event) {
       <input
         type="color"
         :value="gekozenKleur"
-        @input="kiesAchtergrondKleur($event.target.value, true)"
-        @change="kiesAchtergrondKleur($event.target.value)"
-        @blur="stopKleurWijziging"
+        @input="selectBackgroundColor($event.target.value, true)"
+        @change="selectBackgroundColor($event.target.value)"
+        @blur="stopColorChange"
         />
 
     </label>
@@ -79,8 +79,8 @@ function pasHexkleurToe(event) {
           maxlength="7"
           required
           spellcheck="false"
-          @change="pasHexkleurToe"
-          @keydown.enter.prevent="pasHexkleurToe"
+          @change="applyHexColor"
+          @keydown.enter.prevent="applyHexColor"
         />
       </label>
 
@@ -98,7 +98,7 @@ function pasHexkleurToe(event) {
             :aria-pressed="gekozenKleur === kleur"
             :class="{ gekozen: gekozenKleur === kleur }"
             :title="kleur"
-            @click="kiesAchtergrondKleur(kleur)"
+            @click="selectBackgroundColor(kleur)"
         />
       </div>
 

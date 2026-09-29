@@ -1,3 +1,4 @@
+import ts from "typescript";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -5,7 +6,7 @@ import { SourceTextModule, SyntheticModule, createContext } from "node:vm";
 import { markRaw, ref, computed, watch, effectScope, nextTick } from "vue";
 import { getPlainText, parseTaggedText, TextStyle } from "pixi.js";
 
-function zichtbareTekst(object) {
+function getVisibleText(object) {
   return getPlainText(object.text, new TextStyle(object.style));
 }
 
@@ -227,8 +228,8 @@ async function setup({ opslag = {}, leeg = false } = {}) {
     } },
   });
   const sources = {
-    [new URL("../src/composables/photostyler/conceptOpslag.js", import.meta.url).href]: {
-      conceptTransactie: async (actie, concept) => {
+    [new URL("../src/composables/photostyler/conceptStorage.ts", import.meta.url).href]: {
+      draftTransaction: async (actie, concept) => {
         if (opslag.fout) throw new Error("Opslag niet beschikbaar");
         if (actie === "lezen") return opslag.concept ? structuredClone(opslag.concept) : undefined;
         opslag.concept = structuredClone(concept);
@@ -272,7 +273,11 @@ async function setup({ opslag = {}, leeg = false } = {}) {
         { context, identifier: id },
       );
     } else {
-      module = new SourceTextModule(await readFile(new URL(id), "utf8"), {
+      const source = await readFile(new URL(id), "utf8");
+      const code = id.endsWith(".ts") ? ts.transpileModule(source, {
+        compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },
+      }).outputText : source;
+      module = new SourceTextModule(code, {
         context,
         identifier: id,
       });
@@ -288,7 +293,7 @@ async function setup({ opslag = {}, leeg = false } = {}) {
     return module;
   }
   const module = await load(
-    new URL("../src/composables/photostyler/usePhotoStyler.js", import.meta.url)
+    new URL("../src/composables/photostyler/usePhotoStyler.ts", import.meta.url)
       .href,
   );
   await module.evaluate();
@@ -305,14 +310,14 @@ async function setup({ opslag = {}, leeg = false } = {}) {
       moveTo() {}, lineTo() {}, stroke() {} }),
   };
   await mounted[0]();
-  if (!leeg) await editor.uploadFoto({
+  if (!leeg) await editor.uploadPhoto({
     target: { files: [{ name: "foto.png" }], value: "" },
   });
   const photo = app.stage.children.find((child) => child instanceof Sprite);
   const frame = app.stage.children.find((child) => child instanceof Graphics);
   if (!leeg) {
     editor.tekstFormulier.value.inhoud = "Onze club";
-    editor.pasTekstToe();
+    editor.applyText();
   }
   const text = app.stage.children.find((child) => child instanceof Text);
   const pointer = (x, y, pointerId = 1) => ({
@@ -348,10 +353,10 @@ const near = (actual, expected) =>
 test("remounting the canvas view reconnects the renderer and restores paint without losing uploads", async () => {
   const h = await setup();
   try {
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
-    h.editor.wisselKwast();
-    h.editor.startTekenen({ ...h.pointer(20, 30), isPrimary: true });
-    h.editor.stopTekenen();
+    await h.editor.uploadBackground({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
+    h.editor.toggleBrush();
+    h.editor.startDrawing({ ...h.pointer(20, 30), isPrimary: true });
+    h.editor.stopDrawing();
     const geschiedenis = h.editor.geschiedenis.value.length;
     const canvas = h.editor.verfCanvas.value;
     const gekoppeld = [];
@@ -381,8 +386,8 @@ test("upload previews follow replacement, undo, deletion and draft restore, and 
   const h = await setup({ leeg: true, opslag });
   try {
     for (const [id, upload, preview] of [
-      ["afbeelding", "uploadFoto", "logoVoorbeeldUrl"],
-      ["achtergrond", "uploadAchtergrond", "achtergrondUploadVoorbeeldUrl"],
+      ["afbeelding", "uploadPhoto", "logoVoorbeeldUrl"],
+      ["achtergrond", "uploadBackground", "achtergrondUploadVoorbeeldUrl"],
     ]) {
       assert.equal(h.editor[preview].value, "");
       const bestand = { name: `${id}.png` };
@@ -393,16 +398,16 @@ test("upload previews follow replacement, undo, deletion and draft restore, and 
       await h.editor[upload]({ target: { files: [{ name: "vervangen.png" }], value: "" } });
       assert.equal(h.previewBestanden.has(eersteUrl), false);
       assert.equal(h.previewBestanden.get(h.editor[preview].value).name, "vervangen.png");
-      h.editor.ongedaanMaken();
+      h.editor.undo();
       assert.equal(h.previewBestanden.get(h.editor[preview].value), bestand);
 
-      h.editor.verwijderLaag(id);
+      h.editor.removeLayer(id);
       assert.equal(h.editor[preview].value, "");
-      h.editor.ongedaanMaken();
+      h.editor.undo();
       assert.equal(h.previewBestanden.get(h.editor[preview].value), bestand);
     }
     assert.equal(h.previewBestanden.size, 2);
-    await h.editor.slaConceptOp();
+    await h.editor.saveConcept();
   } finally { h.close(); }
   assert.equal(h.previewBestanden.size, 0);
 
@@ -428,7 +433,7 @@ test("text drag locks inspectors, tracks the pointer outside the canvas and undo
     assert.equal(h.editor.inspectorsVergrendeld.value, false);
     assert.equal(h.app.canvas.captured.size, 0);
     assert.equal(h.editor.geschiedenis.value.length, before + 1);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.text.x, 400);
     assert.equal(h.text.y, 250);
   } finally {
@@ -446,7 +451,7 @@ test("side handles stretch selected text, preserve the opposite edge and support
     near(h.text.scale.y, 1);
     near(h.text.x - h.text.width / 2, 300);
     assert.equal(h.photo.scale.x, 1.6);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     near(h.text.scale.x, 1);
     near(h.text.x, 400);
   } finally {
@@ -467,17 +472,17 @@ test("rotating and stretching text survive content edits and successive undo ope
     near(h.text.x, 400);
     near(h.text.y, 300);
     h.editor.tekstFormulier.value.inhoud = "Nieuwe tekst";
-    h.editor.pasTekstToe();
+    h.editor.applyText();
     near(h.text.angle, 90);
     near(h.text.scale.x, 1.5);
     near(h.text.y, 300);
-    h.editor.ongedaanMaken();
-    assert.equal(zichtbareTekst(h.text), "Onze club");
+    h.editor.undo();
+    assert.equal(getVisibleText(h.text), "Onze club");
     near(h.text.angle, 90);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     near(h.text.scale.x, 1);
     near(h.text.y, 250);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     near(h.text.angle, 0);
   } finally {
     h.close();
@@ -494,8 +499,8 @@ test("selection switches back to the photo and unchanged colors do not create hi
     near(h.photo.width, 720);
     near(h.text.scale.x, 1);
     const count = h.editor.geschiedenis.value.length;
-    h.editor.startKleurWijziging();
-    h.editor.stopKleurWijziging();
+    h.editor.startColorChange();
+    h.editor.stopColorChange();
     assert.equal(h.editor.geschiedenis.value.length, count);
   } finally {
     h.close();
@@ -509,7 +514,7 @@ test("cancel, blur, lost capture and panel changes all release inspector locks",
       () => h.window.emit("pointercancel", h.pointer(400, 250)),
       () => h.window.emit("blur"),
       () => h.app.canvas.releasePointerCapture(1),
-      () => h.editor.kiesPaneel("achtergrond"),
+      () => h.editor.selectPanel("achtergrond"),
     ]) {
       h.text.emit("pointerdown", h.pointer(400, 250));
       h.window.emit("pointerup", h.pointer(400, 250, 2));
@@ -530,10 +535,10 @@ test("cancel, blur, lost capture and panel changes all release inspector locks",
 test("download includes text without handles, and replacing the photo preserves text", async () => {
   const h = await setup();
   try {
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.ok(h.app.exported.includes(h.text));
     assert.ok(!h.app.exported.includes(h.frame));
-    await h.editor.uploadFoto({
+    await h.editor.uploadPhoto({
       target: { files: [{ name: "nieuw.png" }], value: "" },
     });
     assert.ok(h.app.stage.children.includes(h.text));
@@ -542,7 +547,7 @@ test("download includes text without handles, and replacing the photo preserves 
     assert.ok(h.app.stage.children.indexOf(h.text) > h.app.stage.children.indexOf(logo));
     assert.equal(h.editor.geschiedenis.value.length, 3);
     h.editor.tekstFormulier.value.inhoud = "Opnieuw";
-    h.editor.pasTekstToe();
+    h.editor.applyText();
     assert.ok(h.app.stage.children.some((child) => child instanceof Text));
   } finally {
     h.close();
@@ -556,21 +561,21 @@ test("logo presets fit rotated logos within margins and undo their transformatio
     h.photo.angle = 45;
     h.photo.scale.set(3);
     const before = { x: h.photo.x, y: h.photo.y, scale: h.photo.scale.x };
-    h.editor.plaatsLogo("rechtsonder");
+    h.editor.placeLogo("rechtsonder");
     const extent = (h.photo.width + h.photo.height) / Math.sqrt(2);
     near(h.photo.x + extent / 2, 768);
     near(h.photo.y + extent / 2, 468);
     assert.ok(h.photo.y - extent / 2 >= 32 - 1e-6);
     near(h.photo.angle, 45);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     near(h.photo.x, before.x);
     near(h.photo.y, before.y);
     near(h.photo.scale.x, before.scale);
-    h.editor.plaatsLogo("midden");
+    h.editor.placeLogo("midden");
     near(h.photo.x, 400);
     near(h.photo.y, 250);
     const count = h.editor.geschiedenis.value.length;
-    h.editor.plaatsLogo("midden");
+    h.editor.placeLogo("midden");
     assert.equal(h.editor.geschiedenis.value.length, count);
   } finally { h.close(); }
 });
@@ -578,19 +583,19 @@ test("logo presets fit rotated logos within margins and undo their transformatio
 test("background darkness affects only the background and supports undo and replacement", async () => {
   const h = await setup();
   try {
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: "bg.png" }], value: "" } });
+    await h.editor.uploadBackground({ target: { files: [{ name: "bg.png" }], value: "" } });
     const bg = h.app.stage.children[0];
     const photoTint = h.photo.tint;
-    h.editor.startKleurWijziging();
+    h.editor.startColorChange();
     h.editor.achtergrondDonkerte.value = 50;
-    h.editor.stopKleurWijziging();
+    h.editor.stopColorChange();
     assert.equal(bg.tint, 0x808080);
     assert.equal(h.photo.tint, photoTint);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(bg.tint, 0xffffff);
     assert.equal(h.editor.achtergrondDonkerte.value, 0);
     h.editor.achtergrondDonkerte.value = 100;
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: "next.png" }], value: "" } });
+    await h.editor.uploadBackground({ target: { files: [{ name: "next.png" }], value: "" } });
     assert.equal(h.app.stage.children[0].tint, 0);
     assert.ok(h.app.stage.children.includes(h.text));
   } finally { h.close(); }
@@ -601,22 +606,22 @@ test("layers select objects and hidden layers stay out of exports until undo", a
   try {
     assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, true);
     assert.equal(h.editor.lagen.value.find(l => l.id === 'achtergrond').aanwezig, false);
-    h.editor.selecteerLaag('afbeelding');
+    h.editor.selectLayer('afbeelding');
     assert.equal(h.editor.geselecteerdeLaag.value, 'afbeelding');
-    h.editor.wisselLaagZichtbaarheid('afbeelding');
+    h.editor.toggleLayerVisibility('afbeelding');
     assert.equal(h.photo.visible, false);
     assert.equal(h.frame.visible, false);
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.ok(!h.app.exported.includes(h.photo));
     assert.ok(h.app.exported.includes(h.text));
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.photo.visible, true);
     assert.equal(h.frame.visible, true);
-    h.editor.selecteerLaag('tekst');
+    h.editor.selectLayer('tekst');
     assert.equal(h.editor.actiefPaneel.value, 'tekst');
-    h.editor.verwijderTekst();
+    h.editor.removeText();
     assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, false);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, true);
   } finally { h.close(); }
 });
@@ -625,33 +630,33 @@ test("locked layers reject drag, resize, rotation and logo positioning and can b
   const h = await setup();
   try {
     for (const [id, object] of [['afbeelding', h.photo], ['tekst', h.text]]) {
-      h.editor.selecteerLaag(id);
+      h.editor.selectLayer(id);
       const before = { x: object.x, scale: object.scale.x, angle: object.angle };
-      h.editor.wisselLaagVergrendeling(id);
+      h.editor.toggleLayerLock(id);
       assert.equal(h.frame.visible, false);
       object.emit('pointerdown', h.pointer(object.x, object.y));
       h.window.emit('pointerup', h.pointer(700, 400));
-      h.editor.veranderSchaal(2);
-      h.editor.draaiFoto(45);
-      if (id === 'afbeelding') h.editor.plaatsLogo('linksboven');
+      h.editor.changeScale(2);
+      h.editor.rotatePhoto(45);
+      if (id === 'afbeelding') h.editor.placeLogo('linksboven');
       near(object.x, before.x);
       near(object.scale.x, before.scale);
       near(object.angle, before.angle);
       assert.equal(h.editor.inspectorsVergrendeld.value, false);
-      h.editor.ongedaanMaken();
+      h.editor.undo();
       assert.equal(object.eventMode, 'static');
       assert.equal(h.frame.visible, true);
     }
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    await h.editor.uploadBackground({ target: { files: [{ name: 'bg.png' }], value: '' } });
     const bg = h.app.stage.children[0];
-    h.editor.selecteerLaag('achtergrond');
+    h.editor.selectLayer('achtergrond');
     assert.equal(h.editor.actiefPaneel.value, 'afbeelding');
     assert.equal(h.editor.geselecteerdeLaag.value, 'achtergrond');
-    h.editor.wisselLaagVergrendeling('achtergrond');
+    h.editor.toggleLayerLock('achtergrond');
     bg.emit('pointerdown', h.pointer(400, 250));
     assert.equal(h.editor.inspectorsVergrendeld.value, false);
     assert.equal(bg.eventMode, 'none');
-    h.editor.wisselLaagVergrendeling('achtergrond');
+    h.editor.toggleLayerLock('achtergrond');
     bg.emit('pointerdown', h.pointer(400, 250));
     assert.equal(h.editor.inspectorsVergrendeld.value, true);
     h.window.emit('pointerup', h.pointer(450, 250));
@@ -663,12 +668,12 @@ test("reuploading a deleted hidden and locked image creates a visible editable l
   const h = await setup();
   try {
     for (const id of ['afbeelding', 'achtergrond']) {
-      const upload = id === 'afbeelding' ? h.editor.uploadFoto : h.editor.uploadAchtergrond;
+      const upload = id === 'afbeelding' ? h.editor.uploadPhoto : h.editor.uploadBackground;
       if (id === 'achtergrond') await upload({ target: { files: [{ name: 'old.png' }], value: '' } });
       const old = id === 'afbeelding' ? h.photo : h.app.stage.children[0];
-      h.editor.wisselLaagZichtbaarheid(id);
-      h.editor.wisselLaagVergrendeling(id);
-      h.editor.verwijderLaag(id);
+      h.editor.toggleLayerVisibility(id);
+      h.editor.toggleLayerLock(id);
+      h.editor.removeLayer(id);
       assert.equal(old.destroyed, true);
       assert.ok(!h.app.stage.children.includes(old));
       assert.equal(h.editor.lagen.value.find(l => l.id === id).aanwezig, false);
@@ -695,19 +700,19 @@ test("canvas typing saves multiple lines as one undo step and preserves transfor
     h.text.scale.set(1.2, 0.8);
     h.text.angle = 15;
     const count = h.editor.geschiedenis.value.length;
-    h.editor.startCanvasTekst();
+    h.editor.startCanvasText();
     assert.equal(h.editor.canvasTekstActief.value, true);
     assert.equal(h.text.visible, false);
     h.editor.canvasTekstInvoer.value = 'Eerste regel\nTweede regel';
-    h.editor.stopCanvasTekst();
-    assert.equal(zichtbareTekst(h.text), 'Eerste regel\nTweede regel');
+    h.editor.stopCanvasText();
+    assert.equal(getVisibleText(h.text), 'Eerste regel\nTweede regel');
     assert.equal(h.text.visible, true);
     near(h.text.x, 320);
     near(h.text.scale.x, 1.2);
     near(h.text.angle, 15);
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.ongedaanMaken();
-    assert.equal(zichtbareTekst(h.text), 'Onze club');
+    h.editor.undo();
+    assert.equal(getVisibleText(h.text), 'Onze club');
   } finally { h.close(); }
 });
 
@@ -715,34 +720,34 @@ test("cancel and unchanged canvas text do not create history; clearing text can 
   const h = await setup();
   try {
     const count = h.editor.geschiedenis.value.length;
-    h.editor.startCanvasTekst();
+    h.editor.startCanvasText();
     h.editor.canvasTekstInvoer.value = 'Annuleren';
-    h.editor.stopCanvasTekst(false);
-    assert.equal(zichtbareTekst(h.text), 'Onze club');
+    h.editor.stopCanvasText(false);
+    assert.equal(getVisibleText(h.text), 'Onze club');
     assert.equal(h.text.visible, true);
     assert.equal(h.editor.geschiedenis.value.length, count);
-    h.editor.startCanvasTekst();
-    h.editor.stopCanvasTekst();
+    h.editor.startCanvasText();
+    h.editor.stopCanvasText();
     assert.equal(h.editor.geschiedenis.value.length, count);
-    h.editor.startCanvasTekst();
+    h.editor.startCanvasText();
     h.editor.canvasTekstInvoer.value = '';
-    h.editor.stopCanvasTekst();
+    h.editor.stopCanvasText();
     assert.equal(h.editor.lagen.value.find(l => l.id === 'tekst').aanwezig, false);
-    h.editor.ongedaanMaken();
-    assert.ok(h.app.stage.children.some(o => o instanceof Text && zichtbareTekst(o) === 'Onze club'));
+    h.editor.undo();
+    assert.ok(h.app.stage.children.some(o => o instanceof Text && getVisibleText(o) === 'Onze club'));
   } finally { h.close(); }
 });
 
 test("canvas typing creates text without an image and export commits the draft", async () => {
   const h = await setup();
   try {
-    h.editor.verwijderLaag('tekst');
-    h.editor.verwijderLaag('afbeelding');
-    h.editor.startCanvasTekst();
+    h.editor.removeLayer('tekst');
+    h.editor.removeLayer('afbeelding');
+    h.editor.startCanvasText();
     h.editor.canvasTekstInvoer.value = 'Alleen tekst\nOp het canvas';
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.equal(h.editor.canvasTekstActief.value, false);
-    assert.ok(h.app.exported.some(o => o instanceof Text && zichtbareTekst(o) === 'Alleen tekst\nOp het canvas'));
+    assert.ok(h.app.exported.some(o => o instanceof Text && getVisibleText(o) === 'Alleen tekst\nOp het canvas'));
   } finally { h.close(); }
 });
 
@@ -752,18 +757,18 @@ test("partial bold and italic formatting survives apply, canvas editing and undo
   try {
     const opmaak = [0, 0, 0, 0, 0, 1, 1, 3, 3];
     h.editor.tekstFormulier.value.opmaak = opmaak;
-    h.editor.pasTekstToe();
+    h.editor.applyText();
     const runs = parseTaggedText(h.text.text, new TextStyle(h.text.style));
     assert.deepEqual(runs.map(run => [run.text, run.style.fontWeight, run.style.fontStyle]), [
       ["Onze ", "normal", "normal"],
       ["cl", "bold", "normal"],
       ["ub", "bold", "italic"],
     ]);
-    h.editor.startCanvasTekst();
+    h.editor.startCanvasText();
     assert.deepEqual(Array.from(h.editor.canvasTekstOpmaak.value.opmaak), opmaak);
-    h.editor.stopCanvasTekst();
-    h.editor.ongedaanMaken();
-    assert.equal(zichtbareTekst(h.text), "Onze club");
+    h.editor.stopCanvasText();
+    h.editor.undo();
+    assert.equal(getVisibleText(h.text), "Onze club");
     assert.ok(parseTaggedText(h.text.text, new TextStyle(h.text.style))
       .every(run => run.style.fontWeight === "normal" && run.style.fontStyle === "normal"));
   } finally { h.close(); }
@@ -772,31 +777,31 @@ test("partial bold and italic formatting survives apply, canvas editing and undo
 test("canvas exposure uses original pixels, preserves alpha and supports reset and undo", async () => {
   const h = await setup();
   try {
-    h.editor.selecteerLaag('afbeelding');
+    h.editor.selectLayer('afbeelding');
     const origineel = h.photo.texture;
     const count = h.editor.geschiedenis.value.length;
-    h.editor.veranderBelichting(1);
+    h.editor.changeLighting(1);
     const bewerkt = h.photo.texture;
     assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [80, 160, 240, 128]);
-    h.editor.veranderBelichting(-1);
+    h.editor.changeLighting(-1);
     assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [20, 40, 60, 128]);
-    h.editor.stopKleurWijziging();
+    h.editor.stopColorChange();
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.photo.texture, origineel);
     assert.equal(h.editor.belichtingWaarde.value, 0);
-    h.editor.veranderBelichting(2);
-    h.editor.stopKleurWijziging();
+    h.editor.changeLighting(2);
+    h.editor.stopColorChange();
     assert.deepEqual(bewerkt.source.resource.pixels.slice(0, 4), [160, 255, 255, 128]);
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.equal(h.app.exported.find(o => o === h.photo).texture, bewerkt);
-    h.editor.resetBelichting();
+    h.editor.resetLighting();
     assert.equal(h.photo.texture, origineel);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.photo.texture, bewerkt);
     assert.equal(h.editor.belichtingWaarde.value, 2);
-    h.editor.wisselLaagVergrendeling('afbeelding');
-    h.editor.veranderBelichting(-2);
+    h.editor.toggleLayerLock('afbeelding');
+    h.editor.changeLighting(-2);
     assert.equal(h.editor.belichtingWaarde.value, 2);
     assert.equal(h.text.texture, undefined);
   } finally { h.close(); }
@@ -805,32 +810,32 @@ test("canvas exposure uses original pixels, preserves alpha and supports reset a
 test("exposure is separate per image and resets and releases resources on replacement", async () => {
   const h = await setup();
   try {
-    h.editor.selecteerLaag('afbeelding');
-    h.editor.veranderBelichting(1);
-    h.editor.stopKleurWijziging();
+    h.editor.selectLayer('afbeelding');
+    h.editor.changeLighting(1);
+    h.editor.stopColorChange();
     const oudeFotoTexture = h.photo.texture;
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
-    h.editor.selecteerLaag('achtergrond');
+    await h.editor.uploadBackground({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    h.editor.selectLayer('achtergrond');
     assert.equal(h.editor.belichtingWaarde.value, 0);
-    h.editor.veranderBelichting(-1);
-    h.editor.stopKleurWijziging();
+    h.editor.changeLighting(-1);
+    h.editor.stopColorChange();
     const oudeAchtergrond = h.app.stage.children[0];
     const oudeTexture = oudeAchtergrond.texture;
     assert.deepEqual(oudeTexture.source.resource.pixels.slice(0, 4), [20, 40, 60, 128]);
     assert.deepEqual(oudeFotoTexture.source.resource.pixels.slice(0, 4), [80, 160, 240, 128]);
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'new-bg.png' }], value: '' } });
+    await h.editor.uploadBackground({ target: { files: [{ name: 'new-bg.png' }], value: '' } });
     assert.equal(h.editor.belichtingWaarde.value, 0);
     assert.equal(oudeTexture.destroyed, true);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.belichtingWaarde.value, -1);
     assert.equal(h.editor.achtergrondBestandsnaam.value, "bg.png");
-    await h.editor.uploadFoto({ target: { files: [{ name: 'new.png' }], value: '' } });
+    await h.editor.uploadPhoto({ target: { files: [{ name: 'new.png' }], value: '' } });
     assert.equal(oudeFotoTexture.destroyed, true);
     assert.equal(h.editor.belichtingWaarde.value, 0);
-    h.editor.veranderBelichting(1);
-    h.editor.stopKleurWijziging();
+    h.editor.changeLighting(1);
+    h.editor.stopColorChange();
     const texture = h.app.stage.children.find(o => o instanceof Sprite && o !== h.app.stage.children[0]).texture;
-    h.editor.verwijderFoto();
+    h.editor.deletePhoto();
     assert.equal(texture.destroyed, true);
   } finally { h.close(); }
 });
@@ -838,10 +843,10 @@ test("exposure is separate per image and resets and releases resources on replac
 test("choosing a background color replaces the visible background photo and undoes in one step", async () => {
   const h = await setup();
   try {
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: 'bg.png' }], value: '' } });
+    await h.editor.uploadBackground({ target: { files: [{ name: 'bg.png' }], value: '' } });
     const background = h.app.stage.children[0];
     const count = h.editor.geschiedenis.value.length;
-    h.editor.kiesAchtergrondKleur('#FF0000');
+    h.editor.selectBackgroundColor('#FF0000');
     assert.equal(h.app.renderer.background.color, 'rgb(255, 0, 0)');
     assert.equal(background.visible, false);
     assert.equal(background.destroyed, undefined);
@@ -849,18 +854,18 @@ test("choosing a background color replaces the visible background photo and undo
     assert.equal(h.text.visible, true);
     assert.equal(h.editor.achtergrondBestandsnaam.value, 'bg.png');
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.ok(!h.app.exported.includes(background));
     assert.ok(h.app.exported.includes(h.photo));
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(background.visible, true);
     assert.equal(h.app.renderer.background.color, 'rgb(230, 230, 230)');
     assert.equal(h.editor.geschiedenis.value.length, count);
     // Even an already selected color must hide a covering background photo.
-    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    h.editor.selectBackgroundColor('#e6e6e6');
     assert.equal(background.visible, false);
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    h.editor.selectBackgroundColor('#e6e6e6');
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
   } finally { h.close(); }
 });
@@ -869,15 +874,15 @@ test("live background color picker updates immediately and groups its undo histo
   const h = await setup();
   try {
     const count = h.editor.geschiedenis.value.length;
-    h.editor.kiesAchtergrondKleur('#ff0000', true);
+    h.editor.selectBackgroundColor('#ff0000', true);
     assert.equal(h.app.renderer.background.color, 'rgb(255, 0, 0)');
-    h.editor.kiesAchtergrondKleur('#00abc1', true);
+    h.editor.selectBackgroundColor('#00abc1', true);
     assert.equal(h.app.renderer.background.color, 'rgb(0, 171, 193)');
-    h.editor.kiesAchtergrondKleur('#00abc1');
+    h.editor.selectBackgroundColor('#00abc1');
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.app.renderer.background.color, 'rgb(230, 230, 230)');
-    h.editor.kiesAchtergrondKleur('geen kleur');
+    h.editor.selectBackgroundColor('geen kleur');
     assert.equal(h.editor.geschiedenis.value.length, count);
   } finally { h.close(); }
 });
@@ -885,23 +890,23 @@ test("live background color picker updates immediately and groups its undo histo
 test("a solid background is a downloadable design without an image and undo restores the empty state", async () => {
   const h = await setup();
   try {
-    h.editor.verwijderLaag('tekst');
-    h.editor.verwijderLaag('afbeelding');
+    h.editor.removeLayer('tekst');
+    h.editor.removeLayer('afbeelding');
     assert.equal(h.editor.achtergrondIngesteld.value, false);
     const count = h.editor.geschiedenis.value.length;
     // Choosing even the initial gray explicitly creates a background.
-    h.editor.kiesAchtergrondKleur('#e6e6e6');
+    h.editor.selectBackgroundColor('#e6e6e6');
     assert.equal(h.editor.achtergrondIngesteld.value, true);
     assert.equal(h.editor.geschiedenis.value.length, count + 1);
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.ok(Array.isArray(h.app.exported));
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.achtergrondIngesteld.value, false);
-    h.editor.startKleurWijziging();
+    h.editor.startColorChange();
     h.editor.achtergrondKanalen[0].waarde.value = 100;
-    h.editor.stopKleurWijziging();
+    h.editor.stopColorChange();
     assert.equal(h.editor.achtergrondIngesteld.value, true);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.achtergrondIngesteld.value, false);
   } finally { h.close(); }
 });
@@ -910,17 +915,17 @@ test("a solid background is a downloadable design without an image and undo rest
 test("saved draft restores editable images, text, layer flags and colors after remount", async () => {
   const opslag = {};
   const first = await setup({ opslag });
-  await first.editor.uploadAchtergrond({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
-  first.editor.selecteerLaag("afbeelding");
-  first.editor.draaiFoto(30);
-  first.editor.veranderBelichting(1);
-  first.editor.kiesAchtergrondKleur("#123456");
-  first.editor.wisselLaagVergrendeling("afbeelding");
+  await first.editor.uploadBackground({ target: { files: [{ name: "achtergrond.png" }], value: "" } });
+  first.editor.selectLayer("afbeelding");
+  first.editor.rotatePhoto(30);
+  first.editor.changeLighting(1);
+  first.editor.selectBackgroundColor("#123456");
+  first.editor.toggleLayerLock("afbeelding");
   first.editor.tekenModus.value = true;
-  first.editor.startTekenen({ ...first.pointer(20, 30), isPrimary: true });
-  first.editor.tijdensTekenen(first.pointer(50, 60));
-  first.editor.stopTekenen();
-  await first.editor.slaConceptOp();
+  first.editor.startDrawing({ ...first.pointer(20, 30), isPrimary: true });
+  first.editor.continueDrawing(first.pointer(50, 60));
+  first.editor.stopDrawing();
+  await first.editor.saveConcept();
   assert.equal(opslag.concept.verfstreken[0].punten.length, 2);
   assert.match(first.editor.conceptMelding.value, /opgeslagen/);
   first.close();
@@ -935,11 +940,11 @@ test("saved draft restores editable images, text, layer flags and colors after r
     assert.equal(second.editor.lagen.value.find(laag => laag.id === "afbeelding").vergrendeld, true);
     assert.equal(second.editor.lagen.value.find(laag => laag.id === "achtergrond").zichtbaar, false);
     assert.equal(second.editor.geschiedenis.value.length, 0);
-    second.editor.wisselLaagVergrendeling("afbeelding");
-    second.editor.selecteerLaag("afbeelding");
-    second.editor.draaiFoto(15);
+    second.editor.toggleLayerLock("afbeelding");
+    second.editor.selectLayer("afbeelding");
+    second.editor.rotatePhoto(15);
     near(photo.angle, 45);
-    await second.editor.slaConceptOp();
+    await second.editor.saveConcept();
     assert.equal(opslag.concept.verfstreken[0].punten[1].x, 50);
   } finally { second.close(); }
 });
@@ -948,11 +953,11 @@ test("failed save keeps the previous draft and reports failure", async () => {
   const opslag = {};
   const h = await setup({ opslag });
   try {
-    await h.editor.slaConceptOp();
+    await h.editor.saveConcept();
     const vorige = opslag.concept;
     opslag.fout = true;
-    h.editor.kiesAchtergrondKleur("#abcdef");
-    await h.editor.slaConceptOp();
+    h.editor.selectBackgroundColor("#abcdef");
+    await h.editor.saveConcept();
     assert.equal(opslag.concept, vorige);
     assert.match(h.editor.conceptMelding.value, /Opslaan mislukt/);
     assert.equal(h.editor.conceptBezig.value, false);
@@ -963,10 +968,10 @@ test("failed save keeps the previous draft and reports failure", async () => {
 test("saving an empty design replaces the prior draft", async () => {
   const opslag = {};
   const h = await setup({ opslag });
-  await h.editor.slaConceptOp();
-  h.editor.verwijderLaag("tekst");
-  h.editor.verwijderLaag("afbeelding");
-  await h.editor.slaConceptOp();
+  await h.editor.saveConcept();
+  h.editor.removeLayer("tekst");
+  h.editor.removeLayer("afbeelding");
+  await h.editor.saveConcept();
   h.close();
   const next = await setup({ opslag, leeg: true });
   try {
@@ -980,15 +985,15 @@ test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
   const h = await setup();
   let prevented = 0;
   try {
-    h.editor.selecteerLaag("afbeelding");
-    h.editor.draaiFoto(30);
+    h.editor.selectLayer("afbeelding");
+    h.editor.rotatePhoto(30);
     h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault() { prevented++; } });
     near(h.photo.angle, 0);
-    h.editor.draaiFoto(60);
+    h.editor.rotatePhoto(60);
     h.window.emit("keydown", { key: "z", metaKey: true, preventDefault() { prevented++; } });
     near(h.photo.angle, 0);
-    h.editor.draaiFoto(90);
-    h.editor.ongedaanMaken();
+    h.editor.rotatePhoto(90);
+    h.editor.undo();
     near(h.photo.angle, 0);
     assert.equal(prevented, 2);
     assert.equal(h.editor.opnieuwToe, undefined);
@@ -999,20 +1004,20 @@ test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
 test("undo shortcut finishes a slider change but respects text input and other shortcuts", async () => {
   const h = await setup();
   try {
-    h.editor.kiesAchtergrondKleur("#ff0000", true);
+    h.editor.selectBackgroundColor("#ff0000", true);
     const range = { type: "range", closest(selector) { return selector === "input" ? this : null; } };
     h.window.emit("keydown", { key: "z", ctrlKey: true, target: range, preventDefault() {} });
     assert.equal(h.editor.achtergrondVoorbeeld.value, "rgb(230, 230, 230)");
-    h.editor.selecteerLaag("afbeelding");
-    h.editor.draaiFoto(30);
+    h.editor.selectLayer("afbeelding");
+    h.editor.rotatePhoto(30);
     const tekst = { type: "text", closest(selector) { return selector === "input" ? this : null; } };
-    const verboden = () => assert.fail("Text undo and unrelated keys must not be intercepted");
+    const rejectUnexpectedCall = () => assert.fail("Text undo and unrelated keys must not be intercepted");
     for (const extra of [
       { target: tekst }, { target: { isContentEditable: true } },
       { shiftKey: true }, { altKey: true }, { isComposing: true },
       { defaultPrevented: true }, { key: "y" },
     ]) {
-      h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault: verboden, ...extra });
+      h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault: rejectUnexpectedCall, ...extra });
       near(h.photo.angle, 30);
     }
   } finally { h.close(); }
@@ -1023,10 +1028,10 @@ test("first upload is removed by the button, Ctrl+Z or Cmd+Z, including file inp
   for (const actie of ["button", "ctrlKey", "metaKey"]) {
     const h = await setup({ leeg: true });
     try {
-      await h.editor.uploadFoto({ target: { files: [{ name: "logo.png" }], value: "" } });
+      await h.editor.uploadPhoto({ target: { files: [{ name: "logo.png" }], value: "" } });
       assert.equal(h.editor.geschiedenis.value.length, 1);
       assert.equal(h.editor.fileName.value, "logo.png");
-      if (actie === "button") h.editor.ongedaanMaken();
+      if (actie === "button") h.editor.undo();
       else {
         const input = { type: "file", closest(selector) { return selector === "input" ? this : null; } };
         h.window.emit("keydown", { key: "z", [actie]: true, target: input, preventDefault() {} });
@@ -1042,29 +1047,29 @@ test("first upload is removed by the button, Ctrl+Z or Cmd+Z, including file inp
 test("undo replacement and deletion restores original image, transform, exposure and earlier history", async () => {
   const h = await setup({ leeg: true });
   try {
-    await h.editor.uploadFoto({ target: { files: [{ name: "original.png" }], value: "" } });
-    h.editor.selecteerLaag("afbeelding");
-    h.editor.draaiFoto(45);
-    h.editor.veranderBelichting(1);
-    h.editor.stopKleurWijziging();
-    await h.editor.uploadFoto({ target: { files: [{ name: "replacement.png" }], value: "" } });
-    h.editor.ongedaanMaken();
+    await h.editor.uploadPhoto({ target: { files: [{ name: "original.png" }], value: "" } });
+    h.editor.selectLayer("afbeelding");
+    h.editor.rotatePhoto(45);
+    h.editor.changeLighting(1);
+    h.editor.stopColorChange();
+    await h.editor.uploadPhoto({ target: { files: [{ name: "replacement.png" }], value: "" } });
+    h.editor.undo();
     assert.equal(h.editor.fileName.value, "original.png");
     let restored = h.app.stage.children.find(c => c instanceof Sprite);
     near(restored.angle, 45);
     assert.equal(h.editor.belichtingWaarde.value, 1);
-    h.editor.verwijderLaag("afbeelding");
+    h.editor.removeLayer("afbeelding");
     assert.equal(h.editor.fileName.value, "");
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     restored = h.app.stage.children.find(c => c instanceof Sprite);
     near(restored.angle, 45);
-    h.editor.selecteerLaag("afbeelding");
+    h.editor.selectLayer("afbeelding");
     assert.equal(h.editor.belichtingWaarde.value, 1);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.belichtingWaarde.value, 0);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     near(restored.angle, 0);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.fileName.value, "");
   } finally { h.close(); }
 });
@@ -1072,15 +1077,15 @@ test("undo replacement and deletion restores original image, transform, exposure
 test("background upload and removal are undoable without affecting the logo", async () => {
   const h = await setup();
   try {
-    await h.editor.uploadAchtergrond({ target: { files: [{ name: "background.png" }], value: "" } });
+    await h.editor.uploadBackground({ target: { files: [{ name: "background.png" }], value: "" } });
     const background = h.app.stage.children[0];
     background.position.set(380, 240);
-    h.editor.verwijderLaag("achtergrond");
-    h.editor.ongedaanMaken();
+    h.editor.removeLayer("achtergrond");
+    h.editor.undo();
     assert.equal(h.editor.achtergrondBestandsnaam.value, "background.png");
     near(h.app.stage.children[0].x, 380);
     near(h.app.stage.children[0].y, 240);
-    h.editor.ongedaanMaken();
+    h.editor.undo();
     assert.equal(h.editor.achtergrondBestandsnaam.value, "");
     assert.ok(h.app.stage.children.includes(h.photo));
     assert.ok(h.app.stage.children.includes(h.text));
@@ -1091,7 +1096,7 @@ test("background upload and removal are undoable without affecting the logo", as
 test("downloads always use XXL dimensions", async () => {
   const h = await setup();
   try {
-    h.editor.downloadFoto();
+    h.editor.downloadPhoto();
     assert.equal(h.downloadCanvas.width, 1350);
     assert.equal(h.downloadCanvas.height, 852);
   } finally { h.close(); }
@@ -1132,7 +1137,7 @@ test("PNG filename uses the supplied company name, then uuid, then the default",
       ["", "mijn-bewerkte-foto-1350x852.png"],
     ]) {
       h.window.location.search = search;
-      h.editor.downloadFoto();
+      h.editor.downloadPhoto();
       assert.equal(h.downloadLink.download, expected);
     }
   } finally { h.close(); }

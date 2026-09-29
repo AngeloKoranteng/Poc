@@ -1,23 +1,23 @@
 <script setup>
 import { ref, useId } from "vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
   actiefPaneel,
-  kiesPaneel,
+  selectPanel,
   fileName,
   achtergrondBestandsnaam,
-  veranderSchaal,
-  draaiFoto,
-  verwijderFoto,
-  plaatsLogo,
+  changeScale,
+  rotatePhoto,
+  deletePhoto,
+  placeLogo,
   achtergrondDonkerte,
-  startKleurWijziging,
-  stopKleurWijziging,
+  startColorChange,
+  stopColorChange,
   belichtingWaarde,
   belichtingBeschikbaar,
-  veranderBelichting,
-  resetBelichting,
+  changeLighting,
+  resetLighting,
 } = usePhotoStylerContext();
 
 const menuId = useId();
@@ -60,8 +60,8 @@ function isOpen(id) {
   return openMenus.value.includes(id);
 }
 
-function wisselMenu(id) {
-  stopKleurWijziging();
+function toggleMenu(id) {
+  stopColorChange();
 
   if (isOpen(id)) {
     openMenus.value = openMenus.value.filter((menu) => menu !== id);
@@ -88,7 +88,7 @@ function wisselMenu(id) {
     <button
         class="primaire-knop"
         type="button"
-        @click="kiesPaneel('uploads')"
+        @click="selectPanel('uploads')"
     >
       Logo of achtergrond toevoegen
     </button>
@@ -111,7 +111,7 @@ function wisselMenu(id) {
           type="button"
           :aria-expanded="isOpen(functie.id)"
           :aria-controls="`${menuId}-${functie.id}`"
-          @click="wisselMenu(functie.id)"
+          @click="toggleMenu(functie.id)"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path :d="functie.icoon" />
@@ -131,25 +131,25 @@ function wisselMenu(id) {
       <legend>Logo positioneren</legend>
 
       <div class="knoppenrij">
-        <button type="button" @click="plaatsLogo('linksboven')">
+        <button type="button" @click="placeLogo('linksboven')">
           Linksboven
         </button>
-        <button type="button" @click="plaatsLogo('rechtsboven')">
+        <button type="button" @click="placeLogo('rechtsboven')">
           Rechtsboven
         </button>
       </div>
 
       <div class="knoppenrij">
-        <button type="button" @click="plaatsLogo('midden')">
+        <button type="button" @click="placeLogo('midden')">
           Midden
         </button>
       </div>
 
       <div class="knoppenrij">
-        <button type="button" @click="plaatsLogo('linksonder')">
+        <button type="button" @click="placeLogo('linksonder')">
           Linksonder
         </button>
-        <button type="button" @click="plaatsLogo('rechtsonder')">
+        <button type="button" @click="placeLogo('rechtsonder')">
           Rechtsonder
         </button>
       </div>
@@ -171,13 +171,13 @@ function wisselMenu(id) {
       <div class="knoppenrij">
         <button
             type="button"
-            @click="kiesPaneel('afbeelding'); veranderSchaal(0.9)"
+            @click="selectPanel('afbeelding'); changeScale(0.9)"
         >
           − Kleiner
         </button>
         <button
             type="button"
-            @click="kiesPaneel('afbeelding'); veranderSchaal(1.1)"
+            @click="selectPanel('afbeelding'); changeScale(1.1)"
         >
           + Groter
         </button>
@@ -196,13 +196,13 @@ function wisselMenu(id) {
       <div class="knoppenrij">
         <button
             type="button"
-            @click="kiesPaneel('afbeelding'); draaiFoto(-15)"
+            @click="selectPanel('afbeelding'); rotatePhoto(-15)"
         >
           ↶ Links 15°
         </button>
         <button
             type="button"
-            @click="kiesPaneel('afbeelding'); draaiFoto(15)"
+            @click="selectPanel('afbeelding'); rotatePhoto(15)"
         >
           ↷ Rechts 15°
         </button>
@@ -230,12 +230,12 @@ function wisselMenu(id) {
             max="2"
             step="0.1"
             :value="belichtingWaarde"
-            @input="veranderBelichting($event.target.value)"
-            @change="stopKleurWijziging"
-            @pointerup="stopKleurWijziging"
-            @pointercancel="stopKleurWijziging"
-            @keyup="stopKleurWijziging"
-            @blur="stopKleurWijziging"
+            @input="changeLighting($event.target.value)"
+            @change="stopColorChange"
+            @pointerup="stopColorChange"
+            @pointercancel="stopColorChange"
+            @keyup="stopColorChange"
+            @blur="stopColorChange"
         />
       </label>
 
@@ -246,7 +246,7 @@ function wisselMenu(id) {
       <button
           type="button"
           :disabled="belichtingWaarde === 0"
-          @click="resetBelichting"
+          @click="resetLighting"
       >
         Belichting herstellen
       </button>
@@ -273,13 +273,13 @@ function wisselMenu(id) {
             min="0"
             max="100"
             step="1"
-            @pointerdown="startKleurWijziging"
-            @keydown="startKleurWijziging"
-            @change="stopKleurWijziging"
-            @pointerup="stopKleurWijziging"
-            @pointercancel="stopKleurWijziging"
-            @keyup="stopKleurWijziging"
-            @blur="stopKleurWijziging"
+            @pointerdown="startColorChange"
+            @keydown="startColorChange"
+            @change="stopColorChange"
+            @pointerup="stopColorChange"
+            @pointercancel="stopColorChange"
+            @keyup="stopColorChange"
+            @blur="stopColorChange"
         />
       </label>
     </fieldset>
@@ -288,7 +288,7 @@ function wisselMenu(id) {
         class="verwijderen"
         type="button"
         :disabled="!fileName && !achtergrondBestandsnaam"
-        @click="verwijderFoto"
+        @click="deletePhoto"
     >
       Geselecteerde afbeelding verwijderen
     </button>

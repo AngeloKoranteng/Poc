@@ -1,13 +1,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
-import { wijzigInhoud } from "../../composables/photostyler/tekstOpmaak.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
+import { updateContent } from "../../composables/photostyler/textLayout.ts";
 
 const {
   canvasTekstActief,
   canvasTekstInvoer,
   canvasTekstOpmaak,
-  stopCanvasTekst,
+  stopCanvasText,
 } = usePhotoStylerContext();
 const invoer = ref(null);
 const houder = ref(null);
@@ -29,7 +29,7 @@ const stijl = computed(() => {
   };
 });
 
-async function pasHoogteAan() {
+async function adjustHeight() {
   await nextTick();
   if (!invoer.value) return;
   invoer.value.style.height = "auto";
@@ -38,30 +38,30 @@ async function pasHoogteAan() {
 
 watch(canvasTekstActief, async (actief) => {
   if (!actief) return;
-  await pasHoogteAan();
+  await adjustHeight();
   invoer.value?.focus();
   const einde = canvasTekstInvoer.value.length;
   invoer.value?.setSelectionRange(einde, einde);
 });
 
-function toets(event) {
+function handleKeydown(event) {
   // Enter blijft beschikbaar voor nieuwe regels en IME-invoer.
   if (event.isComposing) return;
   if (event.key === "Escape") {
     event.preventDefault();
-    stopCanvasTekst(false);
+    stopCanvasText(false);
   } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
-    stopCanvasTekst();
+    stopCanvasText();
   }
 }
 
-function veranderCanvasInhoud(event) {
-  canvasTekstOpmaak.value = wijzigInhoud(
+function updateCanvasContent(event) {
+  canvasTekstOpmaak.value = updateContent(
       canvasTekstOpmaak.value,
       event.target.value,
   );
-  pasHoogteAan();
+  adjustHeight();
 }
 
 onMounted(() => {
@@ -85,12 +85,12 @@ onBeforeUnmount(() => observer?.disconnect());
       maxlength="500"
       aria-label="Tekst op het canvas"
       placeholder="Typ je tekst…"
-      @input="veranderCanvasInhoud"
-      @keydown.stop="toets"
+      @input="updateCanvasContent"
+      @keydown.stop="handleKeydown"
       @pointerdown.stop
       @dblclick.stop
       @wheel.stop
-      @blur="stopCanvasTekst()"
+      @blur="stopCanvasText()"
     />
   </div>
 </template>

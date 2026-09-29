@@ -1,15 +1,15 @@
 <script setup>
 import ConceptStatus from "./photostyler/ConceptStatus.vue";
-import EditorBovenbalk from "./photostyler/EditorBovenbalk.vue";
-import EditorNavigatie from "./photostyler/EditorNavigatie.vue";
-import UploadPaneel from "./photostyler/UploadPaneel.vue";
-import AfbeeldingPaneel from "./photostyler/AfbeeldingPaneel.vue";
-import TekstPaneel from "./photostyler/TekstPaneel.vue";
-import TekenPaneel from "./photostyler/TekenPaneel.vue";
-import AchtergrondPaneel from "./photostyler/AchtergrondPaneel.vue";
+import EditorTopbar from "./photostyler/editorTopbar.vue";
+import EditorNavigation from "./photostyler/EditorNavigation.vue";
+import UploadPanel from "./photostyler/UploadPanel.vue";
+import ImagePanel from "./photostyler/ImagePanel.vue";
+import TextPanel from "./photostyler/textPanel.vue";
+import DrawPanel from "./photostyler/drawPanel.vue";
+import BackgroundPanel from "./photostyler/backgroundPanel.vue";
 import EditorCanvas from "./photostyler/EditorCanvas.vue";
-import { usePhotoStyler } from "../composables/photostyler/usePhotoStyler.js";
-import { providePhotoStyler } from "../composables/photostyler/context.js";
+import { usePhotoStyler } from "../composables/photostyler/usePhotoStyler.ts";
+import { providePhotoStyler } from "../composables/photostyler/context.ts";
 
 const editor = usePhotoStyler();
 const { inspectorsVergrendeld, conceptBezig } = editor;
@@ -18,11 +18,11 @@ providePhotoStyler(editor);
 
 <template>
   <section class="editor">
-    <EditorBovenbalk :inert="conceptBezig" />
+    <EditorTopbar :inert="conceptBezig" />
     <ConceptStatus />
 
     <div class="editorindeling" :inert="conceptBezig" :aria-busy="conceptBezig">
-      <EditorNavigatie />
+      <EditorNavigation />
 
       <aside
         class="instellingen"
@@ -30,15 +30,15 @@ providePhotoStyler(editor);
         :inert="inspectorsVergrendeld"
         :aria-disabled="inspectorsVergrendeld"
       >
-        <UploadPaneel />
+        <UploadPanel />
 
-        <AfbeeldingPaneel />
+        <ImagePanel />
 
-        <TekstPaneel />
+        <TextPanel />
 
-        <TekenPaneel />
+        <DrawPanel />
 
-        <AchtergrondPaneel />
+        <BackgroundPanel />
       </aside>
 
       <EditorCanvas />

@@ -1,11 +1,11 @@
 <script setup>
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
   actiefPaneel,
   fileName,
   tekenModus,
-  wisselKwast,
+  toggleBrush,
   kwastKleur,
   kwastPalet,
   kwastGrootte,
@@ -35,7 +35,7 @@ const {
         type="button"
         :aria-pressed="tekenModus"
         :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'"
-        @click="wisselKwast"
+        @click="toggleBrush"
       >
         <img
           src="/kwast.svg"

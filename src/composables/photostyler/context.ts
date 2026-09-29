@@ -1,9 +1,11 @@
+import type { InjectionKey } from "vue";
+import type { usePhotoStyler } from "./usePhotoStyler.ts";
 import { inject, provide } from "vue";
 
-const photoStylerKey = Symbol("PhotoStyler");
+const photoStylerKey: InjectionKey<ReturnType<typeof usePhotoStyler>> = Symbol("PhotoStyler");
 
 // Iedere editor deelt zijn eigen toestand met de onderliggende componenten.
-export function providePhotoStyler(editor) {
+export function providePhotoStyler(editor: ReturnType<typeof usePhotoStyler>) {
   provide(photoStylerKey, editor);
 }
 

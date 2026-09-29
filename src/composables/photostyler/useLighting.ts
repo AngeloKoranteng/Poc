@@ -1,7 +1,26 @@
-import { Texture } from "pixi.js";
+import { Texture, Sprite } from "pixi.js";
+
+// Interface voor de opgeslagen bronnen in de Map
+interface BelichtingsBron {
+  sprite: Sprite;
+  afbeelding: HTMLImageElement | HTMLCanvasElement;
+  origineel: Texture;
+  waarde: number;
+  bewerking: {
+    canvas: HTMLCanvasElement;
+    context: CanvasRenderingContext2D;
+    pixels: ImageData;
+    uitvoer: ImageData;
+    texture: Texture;
+  } | null;
+}
 
 // Reken altijd vanaf het origineel; transparantie blijft ongewijzigd.
-export function belichtPixels(origineel, uitvoer, waarde) {
+export function illuminatePixels(
+    origineel: Uint8ClampedArray,
+    uitvoer: Uint8ClampedArray,
+    waarde: number
+): void {
   const factor = 2 ** waarde;
   const tabel = new Uint8ClampedArray(256);
   for (let kanaal = 0; kanaal < 256; kanaal++) {
@@ -15,11 +34,11 @@ export function belichtPixels(origineel, uitvoer, waarde) {
   }
 }
 
-export function useBelichting() {
-  const bronnen = new Map();
+export function useLighting() {
+  const bronnen = new Map<string, BelichtingsBron>();
 
-  function registreer(id, sprite, afbeelding) {
-    verwijder(id);
+  function register(id: string, sprite: Sprite, afbeelding: HTMLImageElement | HTMLCanvasElement): void {
+    remove(id);
     bronnen.set(id, {
       sprite,
       afbeelding,
@@ -29,7 +48,7 @@ export function useBelichting() {
     });
   }
 
-  function pasToe(id, waarde) {
+  function apply(id: string, waarde: number): void {
     const bron = bronnen.get(id);
     if (!bron || bron.waarde === waarde) return;
 
@@ -57,7 +76,7 @@ export function useBelichting() {
     }
 
     const { context, pixels, uitvoer, texture } = bron.bewerking;
-    belichtPixels(pixels.data, uitvoer.data, waarde);
+    illuminatePixels(pixels.data, uitvoer.data, waarde);
     context.putImageData(uitvoer, 0, 0);
     // Vernieuw ook de Canvas-renderercache voor een verduisterde achtergrond.
     texture.source.unload();
@@ -66,7 +85,7 @@ export function useBelichting() {
     bron.waarde = waarde;
   }
 
-  function verwijder(id) {
+  function remove(id: string): void {
     const bron = bronnen.get(id);
     if (!bron) return;
     // De bestaande upload-/verwijdercode ruimt de originele texture op.
@@ -75,9 +94,9 @@ export function useBelichting() {
     bronnen.delete(id);
   }
 
-  function ruimOp() {
-    for (const id of bronnen.keys()) verwijder(id);
+  function dispose(): void {
+    for (const id of bronnen.keys()) remove(id);
   }
 
-  return { registreer, pasToe, verwijder, ruimOp };
+  return { register, apply, remove, dispose };
 }

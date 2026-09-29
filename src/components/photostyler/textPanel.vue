@@ -1,6 +1,6 @@
 <script setup>
-import TekstInstellingen from "./TekstInstellingen.vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import TextSettings from "./textSettings.vue";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const { actiefPaneel, canvasKlaar } = usePhotoStylerContext();
 </script>
@@ -16,7 +16,7 @@ const { actiefPaneel, canvasKlaar } = usePhotoStylerContext();
     </p>
     <fieldset :disabled="!canvasKlaar">
       <legend class="sr-only">Tekstinstellingen</legend>
-      <TekstInstellingen />
+      <TextSettings />
     </fieldset>
   </section>
 </template>

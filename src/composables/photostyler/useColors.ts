@@ -1,6 +1,6 @@
 import { ref, computed } from "vue";
 
-export function useKleuren() {
+export function useColors() {
   // RGB-waarden van de achtergrond.
   const rood = ref(230);
   const groen = ref(230);
@@ -14,16 +14,16 @@ export function useKleuren() {
   ];
 
   // Werkt het kleurvoorbeeld bij wanneer de achtergrond verandert.
-  const achtergrondVoorbeeld = computed(() => achtergrondKleur());
+  const achtergrondVoorbeeld = computed(() => getBackgroundColor());
 
   // Begrenst een kleurwaarde tot een geheel getal van 0 tot 255.
-  function kleurGetal(waarde) {
+  function parseColorValue(waarde: number | string) {
     return Math.max(0, Math.min(255, Math.round(Number(waarde) || 0)));
   }
 
   // Maakt de RGB-kleur voor de canvasachtergrond.
-  function achtergrondKleur() {
-    return `rgb(${kleurGetal(rood.value)}, ${kleurGetal(groen.value)}, ${kleurGetal(blauw.value)})`;
+  function getBackgroundColor() {
+    return `rgb(${parseColorValue(rood.value)}, ${parseColorValue(groen.value)}, ${parseColorValue(blauw.value)})`;
   }
 
   return {
@@ -32,6 +32,6 @@ export function useKleuren() {
     blauw,
     achtergrondKanalen,
     achtergrondVoorbeeld,
-    achtergrondKleur,
+    getBackgroundColor,
   };
 }

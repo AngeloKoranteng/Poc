@@ -1,17 +1,17 @@
 <script setup>
 import { computed } from "vue";
-import { usePhotoStylerContext } from "../../composables/photostyler/context.js";
+import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const props = defineProps({ laagId: { type: String, required: true } });
 const {
-  lagen, geselecteerdeLaag, selecteerLaag, verwijderLaag,
-  wisselLaagZichtbaarheid, wisselLaagVergrendeling, kiesPaneel,
+  lagen, geselecteerdeLaag, selectLayer, removeLayer,
+  toggleLayerVisibility, toggleLayerLock, selectPanel,
 } = usePhotoStylerContext();
 const laag = computed(() => lagen.value.find((item) => item.id === props.laagId));
 
-function verwijder() {
-  verwijderLaag(props.laagId);
-  kiesPaneel("uploads");
+function remove() {
+  removeLayer(props.laagId);
+  selectPanel("uploads");
 }
 </script>
 
@@ -25,12 +25,12 @@ function verwijder() {
     </p>
     <div class="actieknoppen">
       <button type="button" :aria-label="`${laag.naam} selecteren en bewerken`"
-        @click="selecteerLaag(laagId)">
+        @click="selectLayer(laagId)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L20 8l-4-4ZM14 6l4 4" /></svg>
         Bewerken
       </button>
       <button type="button" :aria-label="`${laag.naam} zichtbaar`" :aria-pressed="laag.zichtbaar"
-        @click="wisselLaagZichtbaarheid(laagId)">
+        @click="toggleLayerVisibility(laagId)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
           <circle cx="12" cy="12" r="3" />
@@ -39,7 +39,7 @@ function verwijder() {
         {{ laag.zichtbaar ? 'Verbergen' : 'Tonen' }}
       </button>
       <button type="button" :aria-label="`${laag.naam} positie vergrendeld`" :aria-pressed="laag.vergrendeld"
-        @click="wisselLaagVergrendeling(laagId)">
+        @click="toggleLayerLock(laagId)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="5" y="10" width="14" height="11" rx="2" />
           <path v-if="laag.vergrendeld" d="M8 10V6a4 4 0 0 1 8 0v4" />
@@ -47,7 +47,7 @@ function verwijder() {
         </svg>
         {{ laag.vergrendeld ? 'Ontgrendelen' : 'Vastzetten' }}
       </button>
-      <button class="actie-verwijderen" type="button" :aria-label="`${laag.naam} verwijderen`" @click="verwijder">
+      <button class="actie-verwijderen" type="button" :aria-label="`${laag.naam} verwijderen`" @click="remove">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" />
         </svg>
