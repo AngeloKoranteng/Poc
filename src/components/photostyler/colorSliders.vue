@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 defineProps({
   kanalen: { type: Array, required: true },
   label: { type: String, required: true },

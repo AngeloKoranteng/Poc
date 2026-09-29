@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, useId } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 

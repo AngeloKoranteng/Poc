@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import CanvaTextInput from "./canvaTextInput.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 

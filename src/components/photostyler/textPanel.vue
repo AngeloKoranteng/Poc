@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import TextSettings from "./textSettings.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 

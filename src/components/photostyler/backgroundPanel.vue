@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from "vue";
 import ColorSliders from "./colorSliders.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";

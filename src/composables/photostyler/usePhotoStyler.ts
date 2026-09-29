@@ -10,7 +10,7 @@ import { draftTransaction } from "./conceptStorage.ts";
 import { useLighting } from "./useLighting.ts";
 
 export function usePhotoStyler() {
-  // Verwijzingen naar het canvas, de verflaag en het uploadveld.
+  // References to the canvas, the paint layer, and the upload field.
   const middenlijnen = ref({ verticaal: false, horizontaal: false });
   const canvasHost = ref<HTMLElement | null>(null);
   const verfCanvas = ref<HTMLCanvasElement | null>(null);
@@ -20,7 +20,7 @@ export function usePhotoStyler() {
   const conceptStatus = ref("info");
 
   function markNotSaved(){
-    // Tijdens opslaan of het laden van een concept
+    // While saving or loading a draft
     if (conceptBezig.value) return;
     conceptStatus.value = "gewijzigd";
     conceptMelding.value = "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan."
@@ -31,7 +31,7 @@ export function usePhotoStyler() {
   let fotoBestand: File | null = null;
   let achtergrondBestand: File | null = null;
 
-  // Houd de preview-URL geldig zolang het bijbehorende bestand gebruikt wordt.
+  // Keep the preview URL valid as long as the corresponding file is used.
   function createUploadPreview() {
     const url = ref("");
     let huidigBestand: File | null = null;
@@ -58,31 +58,31 @@ export function usePhotoStyler() {
   let achtergrondUploadId = 0;
 
 
-  // Bestandsnaam, meldingen en het geopende instellingenpaneel.
+  // File name, notifications, and the opened settings panel.
   const fileName = ref("");
   const foutmelding = ref("");
   const canvasKlaar = ref(false);
   const actiefPaneel = ref("uploads");
-  // Vergrendelt de instellingen zolang een object wordt versleept of vervormd.
+  // Locks the settings while an object is being dragged or transformed.
   const inspectorsVergrendeld = ref(false);
 
-  // Aan/uit-status, kleur en dikte van de kwast.
+  // On/off status, color and thickness of the brush.
   const tekenModus = ref(false);
   const kwastKleur = ref("#ff0000");
   const kwastGrootte = ref(12);
 
-  // Bewaart eerdere toestanden en het begin van een bewerking.
+  // Saves earlier condition and the beginning of the edit.
   const geschiedenis = ref<EditorState[]>([]);
   let bezigMetHerstellen = false;
   let sleepBegin: DragAction | null = null;
   let kleurBegin: EditorState | null = null;
 
-  // Pixi-editor en de afbeelding op het canvas.
+  // Pixi-editor and the image of the canvas
   let app: Application<Renderer<HTMLCanvasElement>>;
   let fotoSprite: Sprite | null = null;
 
   let fotoKader: Graphics;
-  // Bepaalt welk object met de grepen wordt bewerkt.
+  //Decides which object with the grip gets edited
   let geselecteerdType = "afbeelding";
   const lagen = ref([
     {
@@ -109,7 +109,7 @@ export function usePhotoStyler() {
   ]);
 
   const geselecteerdeLaag = ref(geselecteerdType);
-  // Elke afbeelding bewaart haar eigen belichting.
+  // Every image saves their own lightning
   const belichtingen = ref<Record<string, number>>({
     afbeelding: 0,
     achtergrond: 0,
@@ -173,7 +173,7 @@ export function usePhotoStyler() {
     return null;
   }
 
-  // Een nieuwe upload moet direct zichtbaar en bewerkbaar zijn.
+  //  A new upload shall be directly visible and editable
   function resetUploadLayer(id: string) {
     const laag = lagen.value.find((laag) => laag.id === id);
     if (!laag) return;
@@ -191,7 +191,7 @@ export function usePhotoStyler() {
     );
   }
 
-// Werkt de lijst en de zichtbaarheid op het canvas bij.
+// Updates the list and the visibility on the canvas
   function syncLayers() {
     geselecteerdeLaag.value = geselecteerdType;
 
@@ -271,13 +271,13 @@ export function usePhotoStyler() {
 
     if (geselecteerdType === "tekst") return getTextObject();
 
-    // De achtergrond gebruikt slepen, maar geen schaal- of draaigrepen.
+    // The background supports dragging, but has no scaling or rotation handles.
     if (geselecteerdType === "achtergrond") return null;
 
     return fotoSprite;
   }
 
-  // Leest de transformatie van de geselecteerde foto of tekst.
+  // Reads the transformation of the selected text or picture
   function readObjectState(object: EditableObject) {
     return {
       x: object.x,
@@ -288,33 +288,33 @@ export function usePhotoStyler() {
     };
   }
 
-  // Hoekblokjes, zijgrepen en de actieve schaal- of draaibewerking.
+  // Corner blocks, sidegrip and the active scale of the turn operation
   let hoekBlokjes: Graphics[] = [];
   let draaiGreep: Graphics;
   let resizeActie: ResizeAction | null = null;
 
   const hoekRichtingen = [
-    // Hoeken veranderen beide afmetingen met dezelfde factor.
+    //Corners change both of the size with the same factor
     { x: -1, y: -1 },
     { x: 1, y: -1 },
     { x: 1, y: 1 },
     { x: -1, y: 1 },
 
-    // Zijgrepen veranderen alleen de breedte of hoogte.
+    // Side grip changes only the width
     { x: -1, y: 0 },
     { x: 1, y: 0 },
     { x: 0, y: -1 },
     { x: 0, y: 1 },
   ];
-  // Voorkomt dat een verouderde upload na het laden wordt getoond.
+  // Prevents that a old upload after loading gets showed
   let uploadId = 0;
   let unmounted = false;
 
-  // Sleepstatus en afstand tussen de aanwijzer en de afbeelding.
+  // Drag state and distance between the pointer and the image
   let slepen = false;
   let verschil = { x: 0, y: 0 };
 
-  // Opent een paneel en stopt de actieve bewerking.
+  // Opens a panel and stops the active edit
   function selectPanel(paneel: string) {
     stopResize();
     stopDrag();
@@ -322,14 +322,14 @@ export function usePhotoStyler() {
     stopColorChange();
     if (paneel !== "tekenen") tekenModus.value = false;
     actiefPaneel.value = paneel;
-    // Laat de grepen aansluiten bij het gekozen instellingenpaneel.
+    //  Lets the grip connect to the chosen settingspanel
     if (paneel === "tekst" || paneel === "afbeelding") {
       geselecteerdType = paneel;
     }
     renderCanvas();
   }
 
-  // Schakelt de kwast in of uit.
+  // Switches the paint on or off
   function toggleBrush() {
     stopResize();
     stopDrag();
@@ -339,14 +339,14 @@ export function usePhotoStyler() {
     if (tekenModus.value) actiefPaneel.value = "tekenen";
   }
 
-  // Leest positie, schaal, kleuren en het aantal verfstreken.
+  // Reads the position, scale, color and the number of expired
   function getCurrentState(): EditorState {
     return {
       bronnen: { foto: fotoBron, achtergrond: achtergrondBron },
       selectie: geselecteerdType,
       x: fotoSprite?.x ?? null,
       y: fotoSprite?.y ?? null,
-      // Bewaart breedte en hoogte afzonderlijk voor Ongedaan maken.
+      // Saves width and height separately for Undo.
       schaalX: fotoSprite?.scale.x ?? null,
       schaalY: fotoSprite?.scale.y ?? null,
       hoek: fotoSprite?.angle ?? 0,
@@ -381,7 +381,7 @@ export function usePhotoStyler() {
     };
   }
 
-  // Bewaart een toestand voor Ongedaan maken.
+  // Saves a condition for undo
   function saveState(toestand = getCurrentState()) {
     if (bezigMetHerstellen || !canvasKlaar.value) return;
 
@@ -390,7 +390,7 @@ export function usePhotoStyler() {
     markNotSaved();
   }
 
-  // Onthoudt de toestand voordat een kleurslider verandert.
+  // Reminds the condition before the color slider changes
   function startColorChange() {
     stopResize();
     if (!canvasKlaar.value || kleurBegin) return;
@@ -398,7 +398,7 @@ export function usePhotoStyler() {
     kleurBegin = getCurrentState();
   }
 
-  // Bewaart een kleurwijziging als een enkele bewerking.
+  // Saves a color change as a single proces
   function stopColorChange() {
     if (!kleurBegin) return;
 
@@ -410,8 +410,8 @@ export function usePhotoStyler() {
     kleurBegin = null;
   }
 
-  // Een kleurkeuze schakelt de canvasachtergrond van foto naar effen kleur.
-  // De foto blijft als verborgen laag bewaard, ook voor Ongedaan maken.
+  // A color choice switches the canvas background
+  // The photo stays as hidden layer saves en also undo
   function selectBackgroundColor(kleur: string, doorlopend = false) {
     if (!canvasKlaar.value || inspectorsVergrendeld.value) return;
 
@@ -444,7 +444,7 @@ export function usePhotoStyler() {
 
     achtergrondIngesteld.value = true;
 
-    // Als er een achtergrondfoto is, verberg die.
+    // If there is a background picture, hide it
     const achtergrondLaag = lagen.value.find(
         (laag) => laag.id === "achtergrond"
     );
@@ -453,15 +453,14 @@ export function usePhotoStyler() {
       achtergrondLaag.zichtbaar = false;
     }
 
-    // RGB aanpassen.
+    // Change RGB.
     rood.value = kanalen[0];
     groen.value = kanalen[1];
     blauw.value = kanalen[2];
 
     renderCanvas();
-
-    // De watch([rood, groen, blauw]) zorgt vervolgens
-    // automatisch voor het opnieuw tekenen van de canvas.
+    // The watch [red, green, blue] takes care
+    // automatically redraws the canvas.
 
     if (!doorlopend) {
       stopColorChange();
@@ -469,7 +468,7 @@ export function usePhotoStyler() {
   }
 
 
-  // Herstelt de vorige afbeelding, kleuren en verflaag.
+  // Recovers the last image, colors and paint layer.
   function undo() {
     if (!canvasKlaar.value || conceptBezig.value) return;
     finishProcessing();
@@ -481,7 +480,7 @@ export function usePhotoStyler() {
     markNotSaved();
   }
 
-  // Bewaar gedecodeerde bronnen in de historie, zodat herstel direct werkt.
+  // Saves coded source in the history, so that recovery works immediately
   function recoverySources(bronnen: NonNullable<EditorState["bronnen"]>) {
     for (const id of ["achtergrond", "afbeelding"]) {
       const achtergrond = id === "achtergrond";
@@ -544,7 +543,7 @@ export function usePhotoStyler() {
         laag.vergrendeld = vorigeLaag?.vergrendeld ?? false;
       }
 
-      // Herstelt de positie, beide schalen en de draaihoek.
+      // Recovers the position, both scales and the turncorner
       if (fotoSprite && vorige.schaalX !== null && vorige.schaalY !== null) {
         fotoSprite.position.set(vorige.x ?? 400, vorige.y ?? 250);
         fotoSprite.scale.set(vorige.schaalX, vorige.schaalY);
@@ -553,7 +552,7 @@ export function usePhotoStyler() {
 
       const achtergrondPositie = vorige.achtergrondPositie;
 
-// Herstel alleen de positie van dezelfde achtergrondafbeelding.
+      // Only saves the position of the same background image
       if (
           achtergrondSprite &&
           achtergrondPositie &&
@@ -605,7 +604,7 @@ async function newDesign(){
     try{
       await draftTransaction("verwijderen");
 
-      //Herlaad pas nadat het conceptecht verwijderd is.
+      // Reloads after concept is deleted
       window.location.reload();
     } catch {
       conceptStatus.value = "fout";
@@ -619,7 +618,7 @@ async function newDesign(){
 
 
 
-  // Bewaart bronbestanden, bewerkingen en verf; geen afgeplatte PNG.
+  // Saves sourcefiles, changes and paint
   async function saveConcept() {
     if (!canvasKlaar.value || conceptBezig.value) return;
     stopResize();
@@ -704,8 +703,8 @@ async function newDesign(){
   }
 
 
-  // Maakt afzonderlijke hoekblokjes met een ruimer klikgebied.
-  // Voegt ook zijgrepen en een ronde draaigreep toe.
+  // Make a individual corner blocks with a spacious click
+  // Add sidegrips and the round turn grip
   function makeCornerBlocks() {
     hoekBlokjes = hoekRichtingen.map((richting) => {
       const blokje = new Graphics()
@@ -721,14 +720,14 @@ async function newDesign(){
       return blokje;
     });
 
- //witte knop met ronde pijl
+ //White button with round arrow
     draaiGreep= new Graphics()
         .circle(0, 0, 14)
         .fill({ color: 0xffffff })
         .stroke({ width: 2, color: 0x3b82f6});
 
 
-    //Gebogen lijn van het draaien
+    //Curved line of the turn
     draaiGreep
         .arc(0, 0, 7, 0, Math.PI * 1.5)
         .stroke({
@@ -737,7 +736,7 @@ async function newDesign(){
           cap: "round",
         });
 
-    //Pijlpunt
+    //Arrowpoint
     draaiGreep
         .moveTo(-4, -11,)
         .lineTo(0, -7)
@@ -758,8 +757,8 @@ async function newDesign(){
     fotoKader.addChild(draaiGreep);
   }
 
-  // Laat het kader en de hoekblokjes de geselecteerde foto of tekst volgen.
-  // Plaatst ook de zijgrepen en de draaigreep.
+  // Let the frame and corner blocks follow the selected photo or text.
+  // Also installs the side handles and the rotary handle.
   function adjustPhotoFrame() {
     const object = getActiveObject();
     if (!fotoKader) return;
@@ -789,7 +788,7 @@ async function newDesign(){
         (richting.y * hoogte) / 2,
       );
 
-      // Laat de cursor aansluiten bij de gedraaide sleeprichting.
+      // Align the cursor with the rotated drag direction.
       const hoek =
         Math.atan2(richting.y * hoogte, richting.x * breedte) + object.rotation;
 
@@ -797,7 +796,7 @@ async function newDesign(){
       blokje.cursor = cursors[cursorIndex];
     });
 
-    // Verbindt de bovenrand met de draaigreep.
+    // Connect the top edge to the rotating handle.
     const draaiY = -hoogte / 2 - 32;
 
     fotoKader
@@ -809,7 +808,7 @@ async function newDesign(){
   }
 
 
-  // Werkt het kader bij voordat het canvas opnieuw wordt getekend.
+  // Updates the frame before redrawing the canvas.
   function renderCanvas() {
     if (!app || !canvasKlaar.value) return;
 
@@ -835,8 +834,8 @@ async function newDesign(){
     };
   }
 
-  // Bewaart de beginpositie en de tegenoverliggende, vaste hoek.
-  // Bij een zijgreep blijft de tegenoverliggende rand op zijn plaats.
+// Maintains the starting position and the opposite, fixed angle.
+// With a side grip, the opposite edge remains in place.
   function startResize(event: FederatedPointerEvent, richting: Point) {
     const object = getActiveObject();
     if (
@@ -881,7 +880,7 @@ async function newDesign(){
     app.canvas.setPointerCapture(event.pointerId);
   }
 
-  // Begint het draaien rond het middelpunt van de afbeelding.
+  // Starts rotating around the center of the image.
   function startTurn(event: FederatedPointerEvent) {
     const object = getActiveObject();
     if (
@@ -918,8 +917,8 @@ async function newDesign(){
     app.canvas.setPointerCapture(event.pointerId);
   }
 
-  // Verwerkt draaien, afzonderlijk uitrekken en gelijkmatig schalen.
-  // Hoekgrepen schalen beide assen gelijk en houden de overstaande hoek vast.
+  // Processes turning, separate stretching, and uniform scaling.
+  // Angle handles scale both axes equally and hold the opposite angle.
   function duringResize(event: PointerEvent) {
     if (sleepBegin) {
       duringDrag(event);
@@ -933,18 +932,18 @@ async function newDesign(){
     event.preventDefault();
     const punt = resizePoint(event);
 
-    // Draait de foto met de hoekverandering van de aanwijzer.
+    // Rotates the photo with the change in pointer angle.
     if (actie.type === "draaien") {
       const dx = punt.x - actie.begin.x;
       const dy = punt.y - actie.begin.y;
 
-      // Vlak bij het middelpunt is de aanwijzerhoek onbetrouwbaar.
+      // Near the center, the pointer angle is unreliable.
       if (Math.hypot(dx, dy) < 5) return;
 
       const muisHoek = Math.atan2(dy, dx);
       const verschil = muisHoek - actie.laatsteMuisHoek;
 
-      // Voorkomt een sprong bij de overgang tussen -180 en 180 graden.
+      // Prevents a jump at the transition between -180 and 180 degrees.
       const hoekVerschil = Math.atan2(Math.sin(verschil), Math.cos(verschil));
 
       object.rotation += hoekVerschil;
@@ -957,14 +956,14 @@ async function newDesign(){
     const verplaatsingX = punt.x - actie.muisX;
     const verplaatsingY = punt.y - actie.muisY;
 
-    // Rekent de beweging om naar de lokale assen van de afbeelding.
+    // Converts the motion to the local axes of the image.
     const lokaalX = verplaatsingX * actie.cos + verplaatsingY * actie.sin;
 
     const lokaalY = -verplaatsingX * actie.sin + verplaatsingY * actie.cos;
 
     const { richting, breedte, hoogte } = actie;
 
-    // Voorkomt omklappen. Een al kleinere foto springt niet ineens groter.
+    // Prevents flipping. An already smaller photo does not suddenly jump larger.
     const minimumX = Math.min(1, 20 / breedte);
     const minimumY = Math.min(1, 20 / hoogte);
 
@@ -972,7 +971,7 @@ async function newDesign(){
     let factorY = 1;
 
     if (richting.x !== 0 && richting.y !== 0) {
-      // Hoekgreep: projecteert de beweging op de diagonaal.
+      // Corner grip: projects the movement onto the diagonal.
       const diagonaalX = richting.x * breedte;
       const diagonaalY = richting.y * hoogte;
 
@@ -987,10 +986,10 @@ async function newDesign(){
       factorX = factor;
       factorY = factor;
     } else if (richting.x !== 0) {
-      // Linker- of rechtergreep: verandert alleen de breedte.
+      // Left or right grip: changes only the width.
       factorX = Math.max(minimumX, 1 + (lokaalX * richting.x) / breedte);
     } else {
-      // Boven- of ondergreep: verandert alleen de hoogte.
+      // Overhand or underhand grip: changes only the height.
       factorY = Math.max(minimumY, 1 + (lokaalY * richting.y) / hoogte);
     }
 
@@ -999,7 +998,7 @@ async function newDesign(){
       actie.begin.schaalY * factorY,
     );
 
-    // Verplaatst het middelpunt zodat de overstaande rand of hoek vastblijft.
+    // Moves the center so that the opposite edge or corner remains fixed.
     const verschuivingX = (richting.x * breedte * (factorX - 1)) / 2;
 
     const verschuivingY = (richting.y * hoogte * (factorY - 1)) / 2;
@@ -1012,8 +1011,8 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Bewaart een volledige sleepbeweging als één stap voor Ongedaan maken.
-  // Dit geldt voor schalen, uitrekken en draaien.
+// Saves an entire drag as one step for Undo.
+// This applies to scaling, stretching, and rotating.
   function stopResize(event?: Event) {
     if (sleepBegin) {
       stopDrag(event);
@@ -1028,12 +1027,12 @@ async function newDesign(){
       return;
     }
 
-    // Neemt ook de laatste aanwijzerpositie mee.
+    // Also includes the last pointer position.
     if (event?.type === "pointerup") {
       duringResize(event as PointerEvent);
     }
 
-    // Eerst wissen: het loslaten van capture kan opnieuw een event geven.
+    // Clear first: releasing capture may trigger another event.
     resizeActie = null;
     inspectorsVergrendeld.value = false;
 
@@ -1059,7 +1058,7 @@ async function newDesign(){
     }
   }
 
-  // Start Pixi en voegt het canvas toe aan de pagina.
+// Start Pixi and add the canvas to the page.
   async function makeCanvas() {
     app = new Application<Renderer<HTMLCanvasElement>>();
 
@@ -1093,7 +1092,7 @@ async function newDesign(){
     canvasKlaar.value = true;
   }
 
-  // Laadt de achtergrond onafhankelijk van het logo.
+  // Loads the background independently of the logo.
   async function uploadBackground(event: Event | UploadEvent) {
     const input = event.target as UploadEvent["target"] | null;
     if (!input) return;
@@ -1118,8 +1117,8 @@ async function newDesign(){
       saveState();
       const nieuweSprite = new Sprite(Texture.from(afbeelding));
 
-      // Vult het canvas met behoud van de verhoudingen.
-      // Wat buiten het canvas valt, wordt bij export afgesneden.
+      // Fills the canvas while maintaining proportions.
+      // Anything outside the canvas is cropped during export.
       const schaal = Math.max(
           app.screen.width / nieuweSprite.width,
           app.screen.height / nieuweSprite.height,
@@ -1157,7 +1156,7 @@ async function newDesign(){
       resetUploadLayer("achtergrond");
       applyBackground();
 
-      // Index 0 plaatst de achtergrond onder het logo en de tekst.
+      // Index 0 places the background below the logo and the text.
       app.stage.addChildAt(achtergrondSprite, 0);
       achtergrondBestandsnaam.value = bestand.name;
 
@@ -1172,7 +1171,7 @@ async function newDesign(){
     }
   }
 
-  // Laat tekstvelden hun eigen undo houden; sliders gebruiken de editorhistorie.
+// Let text fields handle their own undo; sliders use the editor history.
   function historyTouch(event: KeyboardEvent) {
     if (!canvasKlaar.value || conceptBezig.value || event.defaultPrevented ||
         event.isComposing || event.altKey || event.shiftKey ||
@@ -1189,7 +1188,7 @@ async function newDesign(){
   }
 
 
-  // Laadt het logo en zet het passend in het midden.
+// Loads the logo and places it appropriately in the center.
   async function uploadPhoto(event: Event | UploadEvent) {
     const input = event.target as UploadEvent["target"] | null;
     if (!input) return;
@@ -1264,11 +1263,11 @@ async function newDesign(){
     }
   }
 
-  // Verwijdert de afbeelding als herstelbare bewerking.
+  // Deletes the image as recoverable modification
   function deletePhoto() {
     if (!canvasKlaar.value) return;
 
-    // Deze actie verwijdert alleen afbeeldingen.
+    // This action only removes images.
     if (geselecteerdType === "tekst") return;
 
     const isAchtergrond = geselecteerdType === "achtergrond";
@@ -1304,7 +1303,7 @@ async function newDesign(){
       textureSource: true,
     });
 
-    // De bron blijft via de geschiedenis beschikbaar voor herstel.
+    // The source remains available for restoration via the history.
     sleepBegin = null;
     kleurBegin = null;
     tekenModus.value = false;
@@ -1316,7 +1315,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Start het verplaatsen van de afbeelding of tekst.
+// Start moving the image or text.
   function startDrag(event: FederatedPointerEvent, object: EditableObject | null = fotoSprite) {
 
     const laagId =
@@ -1388,8 +1387,8 @@ async function newDesign(){
       const halveBreedte = object.width / 2;
       const halveHoogte = object.height / 2;
 
-      // De achtergrond heeft een middelpunt als anker.
-      // Begrens de positie zodat iedere canvasrand bedekt blijft.
+      // The background has a center point as an anchor.
+      // Set the position so that every canvas edge remains covered.
       x = Math.max(
           app.screen.width - halveBreedte,
           Math.min(halveBreedte, x),
@@ -1401,7 +1400,7 @@ async function newDesign(){
       );
     }
 
-    // Een tolerantie van zes schermpixels blijft gelijk bij een kleiner canvas.
+    // Keeps the snapping tolerance at six screen pixels even on a smaller canvas.
     const rect = app.canvas.getBoundingClientRect();
     const verticaal = Math.abs(x - app.screen.width / 2) <= 6 * app.screen.width / rect.width;
     const horizontaal = Math.abs(y - app.screen.height / 2) <= 6 * app.screen.height / rect.height;
@@ -1412,7 +1411,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Stopt het slepen en bewaart de vorige positie.
+  // Stops dragging and saves the previous position.
   function stopDrag(event?: Event) {
     const actie = sleepBegin;
     if (!actie) return;
@@ -1420,7 +1419,7 @@ async function newDesign(){
       return;
     if (event?.type === "pointerup") duringDrag(event as PointerEvent);
 
-    // Eerst wissen: releasePointerCapture kan opnieuw een stop-event geven.
+    // Clear first: releasePointerCapture may trigger another stop event.
     sleepBegin = null;
     slepen = false;
     middenlijnen.value = { verticaal: false, horizontaal: false };
@@ -1436,7 +1435,7 @@ async function newDesign(){
     }
   }
 
-  // Plaatst het volledige logo, inclusief rotatie, binnen een marge van 32 px.
+  // Places the entire logo, including rotation, within a 32 px margin.
   function placeLogo(positie: string) {
     if (!canMoveLayer("afbeelding")) return;
 
@@ -1472,7 +1471,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Een grijze tint verduistert uitsluitend de achtergrondfoto.
+  // A gray tint darkens only the background photo.
   function applyBackground() {
     if (!achtergrondSprite) return;
     const kanaal = Math.round(255 * (1 - achtergrondDonkerte.value / 100));
@@ -1484,7 +1483,7 @@ async function newDesign(){
     renderCanvas();
   }, { flush: "sync" });
 
-  // Draait de afbeelding met het opgegeven aantal graden.
+  // Rotates the image by the specified number of degrees.
   function rotatePhoto(graden: number) {
     const object = getActiveObject();
     stopResize();
@@ -1497,7 +1496,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Vergroot of verkleint de afbeelding.
+  // Scales the image up or down.
   function changeScale(factor: number) {
     const object = getActiveObject();
     stopResize();
@@ -1510,7 +1509,7 @@ async function newDesign(){
     renderCanvas();
   }
 
-  // Past de afbeeldingsgrootte aan met het muiswiel.
+  // Adjusts the image size with the mouse wheel.
   function zoomWithMouse(event: WheelEvent) {
     const object = getActiveObject();
     if (!object || tekenModus.value) return;
@@ -1520,7 +1519,7 @@ async function newDesign(){
     changeScale(event.deltaY < 0 ? 1.1 : 0.9);
   }
 
-  // Combineert achtergrond, afbeelding en verf tot een PNG-download.
+  // Combines the background, image, and paint into a PNG download.
   function downloadPhoto() {
     stopDrag();
     stopResize();
@@ -1549,7 +1548,7 @@ async function newDesign(){
       if (verfCanvas.value) context.drawImage(verfCanvas.value, 0, 0, canvas.width, canvas.height);
       const link = document.createElement("a");
 
-      // De afzender geeft de bedrijfs- of logonaam mee; de ontvanger hoeft niets in te vullen.
+      // The sender supplies the company or logo name; the recipient does not need to enter anything.
       const parameters = new URLSearchParams(window.location.search);
       const naam = (parameters.get("naam") ?? "")
         .normalize("NFC")
@@ -1600,7 +1599,7 @@ async function newDesign(){
     saveState,
   });
 
-  // Verbindt de tekstbediening met het canvas en de geschiedenis.
+  // Connects the text controls to the canvas and history.
   const {
     canvasTekstActief,
     canvasTekstInvoer,
@@ -1629,13 +1628,13 @@ async function newDesign(){
     renderCanvas,
   });
 
-  // Verbergt het kader tijdens tekenen en toont het daarna opnieuw.
+  // Hides the frame while drawing and shows it again afterward.
   watch(tekenModus, () => {
     stopResize();
     renderCanvas();
   });
 
-  // Past een gewijzigde achtergrondkleur direct toe op het canvas.
+  // Applies a changed background color directly to the canvas.
   watch(
     [rood, groen, blauw],
     () => {
@@ -1648,8 +1647,8 @@ async function newDesign(){
     { flush: "sync" },
   );
 
-  // Vue kan de canvascomponent opnieuw opbouwen terwijl de editor blijft bestaan.
-  // Koppel het bestaande Pixi-canvas dan aan de nieuwe host en herstel de verflaag.
+  // Vue may rebuild the canvas component while the editor remains active.
+  // Attach the existing Pixi canvas to the new host and restore the paint layer.
   watch([canvasHost, verfCanvas], ([host, verf], [vorigeHost, vorigeVerf]) => {
     if (unmounted || !canvasKlaar.value || !host || !verf) return;
     if (host !== vorigeHost) host.appendChild(app.canvas);
@@ -1657,7 +1656,7 @@ async function newDesign(){
     renderCanvas();
   }, { flush: "post" });
 
-  // Start de editor zodra de pagina gereed is.
+  // Starts the editor when the page is ready.
   onMounted(async () => {
     try {
       await makeCanvas();
@@ -1669,7 +1668,7 @@ async function newDesign(){
     }
   });
 
-  // Ruimt het canvas, de afbeelding en de muiswielkoppeling op.
+  // Cleans up the canvas, image, and mouse wheel event listener.
   onBeforeUnmount(() => {
     stopResize();
     unmounted = true;

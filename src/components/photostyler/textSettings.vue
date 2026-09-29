@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { nextTick, ref } from "vue";
 import TextEditor from "./TextEditor.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";

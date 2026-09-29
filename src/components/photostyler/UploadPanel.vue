@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue";
 import UploadAction from "./UploadAction.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";

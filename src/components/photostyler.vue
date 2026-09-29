@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import ConceptStatus from "./photostyler/ConceptStatus.vue";
 import EditorTopbar from "./photostyler/editorTopbar.vue";
 import EditorNavigation from "./photostyler/EditorNavigation.vue";

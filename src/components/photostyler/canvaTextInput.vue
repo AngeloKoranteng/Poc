@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 import { updateContent } from "../../composables/photostyler/textLayout.ts";
