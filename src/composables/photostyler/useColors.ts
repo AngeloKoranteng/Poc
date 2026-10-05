@@ -2,36 +2,36 @@ import { ref, computed } from "vue";
 
 export function useColors() {
   // RGB-waarden van de achtergrond.
-  const rood = ref(230);
-  const groen = ref(230);
-  const blauw = ref(230);
+  const red = ref(230);
+  const green = ref(230);
+  const blue = ref(230);
 
-  // Koppelt de achtergrondsliders aan hun kleurwaarden.
+  // Connects the background sliders to their color value
   const achtergrondKanalen = [
-    { naam: "Rood", waarde: rood },
-    { naam: "Groen", waarde: groen },
-    { naam: "Blauw", waarde: blauw },
+    { name: "Red", value: red },
+    { name: "Green", value: green },
+    { name: "Blue", value: blue },
   ];
 
-  // Werkt het kleurvoorbeeld bij wanneer de achtergrond verandert.
-  const achtergrondVoorbeeld = computed(() => getBackgroundColor());
+  // Updates the color preview when the background changes
+  const backgroundExample = computed(() => getBackgroundColor());
 
-  // Begrenst een kleurwaarde tot een geheel getal van 0 tot 255.
-  function parseColorValue(waarde: number | string) {
-    return Math.max(0, Math.min(255, Math.round(Number(waarde) || 0)));
+  // Limit a color value to an integer from 0 to 255
+  function parseColorValue(value: number | string) {
+    return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
   }
 
-  // Maakt de RGB-kleur voor de canvasachtergrond.
+  // Creates the rgb color for the canvas background
   function getBackgroundColor() {
-    return `rgb(${parseColorValue(rood.value)}, ${parseColorValue(groen.value)}, ${parseColorValue(blauw.value)})`;
+    return `rgb(${parseColorValue(red.value)}, ${parseColorValue(green.value)}, ${parseColorValue(blue.value)})`;
   }
 
   return {
-    rood,
-    groen,
-    blauw,
+    red,
+    green,
+    blue,
     achtergrondKanalen,
-    achtergrondVoorbeeld,
+    backgroundExample,
     getBackgroundColor,
   };
 }

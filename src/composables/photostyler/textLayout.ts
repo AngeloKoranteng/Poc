@@ -1,84 +1,85 @@
 import type { TextStyleOptions } from "pixi.js";
 import type { TextContent } from "./types.ts";
-// Elke letter krijgt een getal:
-// 0 = normaal, 1 = vet, 2 = cursief, 3 = beide.
-export function readFormatting(tekst: TextContent) {
-    const standaard = (tekst.vet ? 1 : 0) | (tekst.cursief ? 2 : 0);
+
+// Each character has a formatting value:
+// 0 = normal, 1 = bold, 2 = italic, 3 = both.
+export function readFormatting(text: TextContent) {
+    const defaultFormatting = (text.bold ? 1 : 0) | (text.italics ? 2 : 0);
 
     return Array.from(
-        { length: tekst.inhoud.length },
-        (_, index) => tekst.opmaak?.[index] ?? standaard,
+        { length: text.content.length },
+        (_, index) => text.formatting?.[index] ?? defaultFormatting,
     );
 }
 
-// Houdt opmaak bij de bestaande letters wanneer je tekst wijzigt.
-export function updateContent<T extends TextContent>(tekst: T, inhoud: string) {
-    const vorige = tekst.inhoud;
-    const opmaak = readFormatting(tekst);
-    let begin = 0;
-    let eindeOud = vorige.length;
-    let eindeNieuw = inhoud.length;
+// Preserve formatting on existing characters when the content changes.
+export function updateContent<T extends TextContent>(text: T, content: string) {
+    const previous = text.content;
+    const formatting = readFormatting(text);
+    let start = 0;
+    let oldEnd = previous.length;
+    let newEnd = content.length;
 
     while (
-        begin < eindeOud &&
-        begin < eindeNieuw &&
-        vorige[begin] === inhoud[begin]
-        ) {
-        begin++;
+        start < oldEnd &&
+        start < newEnd &&
+        previous[start] === content[start]
+    ) {
+        start++;
     }
 
     while (
-        eindeOud > begin &&
-        eindeNieuw > begin &&
-        vorige[eindeOud - 1] === inhoud[eindeNieuw - 1]
-        ) {
-        eindeOud--;
-        eindeNieuw--;
+        oldEnd > start &&
+        newEnd > start &&
+        previous[oldEnd - 1] === content[newEnd - 1]
+    ) {
+        oldEnd--;
+        newEnd--;
     }
 
-    const invoerOpmaak = opmaak[begin] ?? opmaak[begin - 1] ?? 0;
+    const insertedFormatting = formatting[start] ?? formatting[start - 1] ?? 0;
 
     return {
-        ...tekst,
-        inhoud,
-        opmaak: [
-            ...opmaak.slice(0, begin),
-            ...Array(eindeNieuw - begin).fill(invoerOpmaak),
-            ...opmaak.slice(eindeOud),
+        ...text,
+        content: content,
+        formatting: [
+            ...formatting.slice(0, start),
+            ...Array(newEnd - start).fill(insertedFormatting),
+            ...formatting.slice(oldEnd),
         ],
     };
 }
 
-// Zet de letters om naar tekst met PixiJS-opmaaktags.
-export function createCanvasText(tekst: TextContent) {
-    const opmaak = readFormatting(tekst);
+// Convert characters to text with PixiJS formatting tags.
+export function createCanvasText(content: TextContent) {
+    const formatting = readFormatting(content);
 
-    // Voorkomt dat zelf getypte tags als opmaak worden behandeld.
-    let prefix = "letterstijl";
-    while (tekst.inhoud.includes(prefix)) prefix += "_";
+    // Prevent user-entered tags from being interpreted as formatting.
+    let prefix = "characterStyle";
+    while (content.content.includes(prefix)) prefix += "_";
 
     const tagStyles: Record<string, Partial<TextStyleOptions>> = {};
-    for (let waarde = 0; waarde < 4; waarde++) {
-        tagStyles[`${prefix}${waarde}`] = {
-            fontWeight: waarde & 1 ? "bold" : "normal",
-            fontStyle: waarde & 2 ? "italic" : "normal",
+    for (let value = 0; value < 4; value++) {
+        tagStyles[`${prefix}${value}`] = {
+            fontWeight: value & 1 ? "bold" : "normal",
+            fontStyle: value & 2 ? "italic" : "normal",
         };
     }
 
     let text = "";
-    let begin = 0;
+    let start = 0;
 
-    while (begin < tekst.inhoud.length) {
-        const waarde = opmaak[begin];
-        let einde = begin + 1;
+    while (start < content.content.length) {
+        const value = formatting[start];
+        let end = start + 1;
 
-        while (einde < tekst.inhoud.length && opmaak[einde] === waarde) {
-            einde++;
+        while (end < content.content.length && formatting[end] === value) {
+            end++;
         }
 
-        const tag = `${prefix}${waarde}`;
-        text += `<${tag}>${tekst.inhoud.slice(begin, einde)}</${tag}>`;
-        begin = einde;
+        const tag = `${prefix}${value}`;
+        text += `<${tag}>${content.content.slice(start, end)}</${tag}>`;
+        start = end;
     }
 
     return { text, tagStyles };

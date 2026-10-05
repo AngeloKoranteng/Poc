@@ -4,48 +4,48 @@ import { usePhotoStylerContext } from "../../composables/photostyler/context.ts"
 import { updateContent } from "../../composables/photostyler/textLayout.ts";
 
 const {
-  canvasTekstActief,
-  canvasTekstInvoer,
-  canvasTekstOpmaak,
+  canvasTextActive,
+  canvasTextInput,
+  canvasTextStyle,
   stopCanvasText,
 } = usePhotoStylerContext();
-const invoer = ref(null);
-const houder = ref(null);
-const canvasBreedte = ref(800);
-let observer;
+const input = ref<HTMLTextAreaElement | null>(null);
+const holder = ref<HTMLDivElement | null>(null);
+const canvasWidth = ref(800);
+let observer: ResizeObserver | undefined;
 
-const stijl = computed(() => {
-  const tekst = canvasTekstOpmaak.value;
-  const verhouding = canvasBreedte.value / 800;
+const style = computed(() => {
+  const text = canvasTextStyle.value;
+  const rate = canvasWidth.value / 800;
   return {
-    left: `${(Number(tekst.x) || 0) / 8}%`,
-    top: `${(Number(tekst.y) || 0) / 5}%`,
-    color: tekst.kleur,
-    fontFamily: tekst.lettertype ?? "Arial",
-    fontWeight: tekst.vet ? "bold" : "normal",
-    fontStyle: tekst.cursief ? "italic" : "normal",
-    fontSize: `${tekst.grootte}px`,
-    transform: `translate(-50%, -50%) rotate(${tekst.hoek ?? 0}deg) scale(${verhouding * (tekst.schaalX ?? 1)}, ${verhouding * (tekst.schaalY ?? 1)})`,
+    left: `${(Number(text.x) || 0) / 8}%`,
+    top: `${(Number(text.y) || 0) / 5}%`,
+    color: text.color,
+    fontFamily: text.fontFamily ?? "Arial",
+    fontWeight: text.bold ? "bold" : "normal",
+    fontStyle: text.italics ? "italic" : "normal",
+    fontSize: `${text.size}px`,
+    transform: `translate(-50%, -50%) rotate(${text.corner ?? 0}deg) scale(${rate * (text.scaleX ?? 1)}, ${rate * (text.scaleY ?? 1)})`,
   };
 });
 
 async function adjustHeight() {
   await nextTick();
-  if (!invoer.value) return;
-  invoer.value.style.height = "auto";
-  invoer.value.style.height = `${invoer.value.scrollHeight}px`;
+  if (!input.value) return;
+  input.value.style.height = "auto";
+  input.value.style.height = `${input.value.scrollHeight}px`;
 }
 
-watch(canvasTekstActief, async (actief) => {
-  if (!actief) return;
+watch(canvasTextActive, async (active) => {
+  if (!active) return;
   await adjustHeight();
-  invoer.value?.focus();
-  const einde = canvasTekstInvoer.value.length;
-  invoer.value?.setSelectionRange(einde, einde);
+  input.value?.focus();
+  const end = canvasTextInput.value.length;
+  input.value?.setSelectionRange(end, end);
 });
 
-function handleKeydown(event) {
-  // Enter blijft beschikbaar voor nieuwe regels en IME-invoer.
+function handleKeydown(event: KeyboardEvent) {
+  // Keep Enter available for new lines and IME input.
   if (event.isComposing) return;
   if (event.key === "Escape") {
     event.preventDefault();
@@ -56,31 +56,37 @@ function handleKeydown(event) {
   }
 }
 
-function updateCanvasContent(event) {
-  canvasTekstOpmaak.value = updateContent(
-      canvasTekstOpmaak.value,
-      event.target.value,
+function updateCanvasContent(event: Event) {
+  const field = event.target;
+  if(!(field instanceof HTMLTextAreaElement)) return;
+  canvasTextStyle.value = updateContent(
+          canvasTextStyle.value,
+          field.value,
   );
-  adjustHeight();
+  void adjustHeight();
 }
 
 onMounted(() => {
+  if (!holder.value) return;
+
   observer = new ResizeObserver(([entry]) => {
-    canvasBreedte.value = entry.contentRect.width;
+    if (entry) canvasWidth.value = entry.contentRect.width;
   });
-  observer.observe(houder.value);
+
+  observer.observe(holder.value);
 });
+
 onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
-  <div ref="houder" class="canvas-teksthouder">
+  <div ref="holder" class="canvas-teksthouder">
     <textarea
-      v-if="canvasTekstActief"
-      ref="invoer"
-      v-model="canvasTekstInvoer"
+      v-if="canvasTextActive"
+      ref="input"
+      v-model="canvasTextInput"
       class="canvas-tekstinvoer"
-      :style="stijl"
+      :style="style"
       rows="1"
       maxlength="500"
       aria-label="Tekst op het canvas"

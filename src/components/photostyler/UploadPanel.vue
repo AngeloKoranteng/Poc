@@ -4,28 +4,36 @@ import UploadAction from "./UploadAction.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  actiefPaneel,
-  canvasKlaar,
+  activePanel,
+  canvasReady,
   fileName,
-  logoVoorbeeldUrl,
-  achtergrondUploadVoorbeeldUrl,
-  bestandInput,
+  logoPreviewUrl,
+  backgroundUploadPreviewUrl,
+  fileInput,
   uploadPhoto,
-  achtergrondBestandsnaam,
+  backgroundFileName,
   uploadBackground,
 } = usePhotoStylerContext();
-const achtergrondInput = ref(null);
 
-function receiveFile(event, upload) {
-  if (!canvasKlaar.value) return;
-  const bestanden = event.dataTransfer?.files;
-  if (!bestanden?.length) return;
-  upload({ target: { files: bestanden, value: "" } });
+const backgroundInput = ref<HTMLInputElement | null>(null);
+
+function receiveFile(event: DragEvent, upload: typeof uploadPhoto) {
+  if (!canvasReady.value) return;
+
+  const files = event.dataTransfer?.files;
+  if (!files?.length) return;
+
+  return upload({
+    target: {
+      files: files,
+      value: "",
+    },
+  });
 }
 </script>
 
 <template>
-  <section v-show="actiefPaneel === 'uploads'" class="paneel">
+  <section v-show="activePanel === 'uploads'" class="paneel">
     <span class="bovenlabel">JOUW CLUB, JOUW STIJL</span>
     <h2>Logo en achtergrond</h2>
     <p>Kies een logo en een achtergrond voor je ontwerp.</p>
@@ -35,15 +43,15 @@ function receiveFile(event, upload) {
     <button
         type="button"
         class="uploadveld"
-        :disabled="!canvasKlaar"
-        @click="bestandInput?.click()"
+        :disabled="!canvasReady"
+        @click="fileInput?.click()"
         @dragover.prevent
         @drop.prevent="receiveFile($event, uploadPhoto)"
     >
       <img
-        v-if="logoVoorbeeldUrl"
+        v-if="logoPreviewUrl"
         class="upload-preview"
-        :src="logoVoorbeeldUrl"
+        :src="logoPreviewUrl"
         :alt="`Voorbeeld van logo ${fileName}`"
         draggable="false"
       />
@@ -56,10 +64,10 @@ function receiveFile(event, upload) {
     </button>
       <input
           hidden
-          ref="bestandInput"
+          ref="fileInput"
           type="file"
           accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
-          :disabled="!canvasKlaar"
+          :disabled="!canvasReady"
           @change="uploadPhoto"
       />
 
@@ -69,29 +77,29 @@ function receiveFile(event, upload) {
       <span>{{ fileName }}</span>
     </div>
 
-    <UploadAction laag-id="afbeelding" />
+    <UploadAction layer-id="afbeelding" />
 
     <h3>Achtergrond</h3>
 
     <button
         type="button"
         class="uploadveld"
-        :disabled="!canvasKlaar"
-        @click="achtergrondInput?.click()"
+        :disabled="!canvasReady"
+        @click="backgroundInput?.click()"
         @dragover.prevent
         @drop.prevent="receiveFile($event, uploadBackground)"
     >
       <img
-        v-if="achtergrondUploadVoorbeeldUrl"
+        v-if="backgroundUploadPreviewUrl"
         class="upload-preview"
-        :src="achtergrondUploadVoorbeeldUrl"
-        :alt="`Voorbeeld van achtergrond ${achtergrondBestandsnaam}`"
+        :src="backgroundUploadPreviewUrl"
+        :alt="`Voorbeeld van achtergrond ${backgroundFileName}`"
         draggable="false"
       />
       <span v-else class="upload-icoon" aria-hidden="true">+</span>
       <strong>
         {{
-          achtergrondBestandsnaam
+          backgroundFileName
               ? "Achtergrond vervangen"
               : "Achtergrond kiezen"
         }}
@@ -101,19 +109,19 @@ function receiveFile(event, upload) {
     </button>
       <input
           hidden
-          ref="achtergrondInput"
+          ref="backgroundInput"
           type="file"
           accept="image/jpeg,image/png,image/webp,image/svg+xml,.svg"
-          :disabled="!canvasKlaar"
+          :disabled="!canvasReady"
           @change="uploadBackground"
       />
 
 
-    <div v-if="achtergrondBestandsnaam" class="bestandkaart">
+    <div v-if="backgroundFileName" class="bestandkaart">
       <span class="statusstip"></span>
-      <span>{{ achtergrondBestandsnaam }}</span>
+      <span>{{ backgroundFileName }}</span>
     </div>
-    <UploadAction laag-id="achtergrond" />
+    <UploadAction layer-id="achtergrond" />
 
   </section>
 </template>

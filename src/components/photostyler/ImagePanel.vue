@@ -3,64 +3,64 @@ import { ref, useId } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  actiefPaneel,
+  activePanel,
   selectPanel,
   fileName,
-  achtergrondBestandsnaam,
+  backgroundFileName,
   changeScale,
   rotatePhoto,
   deletePhoto,
   placeLogo,
-  achtergrondDonkerte,
+  backgroundDarkness,
   startColorChange,
   stopColorChange,
-  belichtingWaarde,
-  belichtingBeschikbaar,
+  lightingValue,
+  lightingAvailable,
   changeLighting,
   resetLighting,
 } = usePhotoStylerContext();
 
 const menuId = useId();
-const openMenus = ref([]);
+const openMenus = ref<string[]>([])
 
-const functies = [
+const features = [
   {
     id: "positie",
-    naam: "Positioneren",
-    icoon: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3",
+    name: "Positioneren",
+    icon: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3",
   },
   {
     id: "formaat",
-    naam: "Formaat",
-    icoon: "M4 10V4h6M14 4h6v6M20 14v6h-6M10 20H4v-6M4 4l6 6M20 20l-6-6",
+    name: "Formaat",
+    icon: "M4 10V4h6M14 4h6v6M20 14v6h-6M10 20H4v-6M4 4l6 6M20 20l-6-6",
   },
   {
     id: "draaien",
-    naam: "Draaien",
-    icoon: "M3 4v6h6M3 10a9 9 0 1 1 2 8",
+    name: "Draaien",
+    icon: "M3 4v6h6M3 10a9 9 0 1 1 2 8",
   },
   {
     id: "exposure",
-    naam: "Exposure",
-    icoon: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
+    name: "Exposure",
+    icon: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
   },
   {
     id: "donkerte",
-    naam: "Verduisteren",
-    icoon: "M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z",
+    name: "Verduisteren",
+    icon: "M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z",
   },
 ];
 
-const functiegroepen = [
-  { naam: "BASIS", items: functies.slice(0, 3) },
-  { naam: "VERBETEREN", items: functies.slice(3) },
+const featureGroups = [
+  { name: "BASIS", items: features.slice(0, 3) },
+  { name: "VERBETEREN", items: features.slice(3) },
 ];
 
-function isOpen(id) {
+function isOpen(id: string) {
   return openMenus.value.includes(id);
 }
 
-function toggleMenu(id) {
+function toggleMenu(id: string) {
   stopColorChange();
 
   if (isOpen(id)) {
@@ -69,19 +69,26 @@ function toggleMenu(id) {
     openMenus.value.push(id);
   }
 }
+
+function handleLightingInput(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  changeLighting(input.value);
+}
 </script>
 
 <template>
-  <section v-show="actiefPaneel === 'afbeelding'" class="paneel">
+  <section v-show="activePanel === 'afbeelding'" class="paneel">
     <span class="bovenlabel">MAAK HET PASSEND</span>
     <h2>Afbeelding</h2>
 
     <p>
-      Selecteer je logo of achtergrond. Klik op een icoon om de
+      Selecteer je logo of achtergrond. Klik op een icon om de
       bijbehorende instellingen te openen.
     </p>
 
-    <p v-if="!fileName && !achtergrondBestandsnaam" class="tip">
+    <p v-if="!fileName && !backgroundFileName" class="tip">
       Upload eerst een logo of achtergrond.
     </p>
 
@@ -93,35 +100,35 @@ function toggleMenu(id) {
       Logo of achtergrond toevoegen
     </button>
 
-    <!-- Compacte functielijst met kleine iconen en zichtbare namen. -->
+    <!-- Compact feature list with small icons and visible names. -->
     <div class="functieknoppen">
       <div
-        v-for="groep in functiegroepen"
-        :key="groep.naam"
+        v-for="group in featureGroups"
+        :key="group.name"
         class="functiegroep"
         role="group"
-        :aria-label="groep.naam"
+        :aria-label="group.name"
       >
-        <h3 class="functiegroep-titel">{{ groep.naam }}</h3>
+        <h3 class="functiegroep-titel">{{ group.name }}</h3>
 
         <button
-          v-for="functie in groep.items"
-          :key="functie.id"
+          v-for="feature in group.items"
+          :key="feature.id"
           class="functieknop"
           type="button"
-          :aria-expanded="isOpen(functie.id)"
-          :aria-controls="`${menuId}-${functie.id}`"
-          @click="toggleMenu(functie.id)"
+          :aria-expanded="isOpen(feature.id)"
+          :aria-controls="`${menuId}-${feature.id}`"
+          @click="toggleMenu(feature.id)"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path :d="functie.icoon" />
+            <path :d="feature.icon" />
           </svg>
-          <span>{{ functie.naam }}</span>
+          <span>{{ feature.name }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Positioneren -->
+    <!-- Positioning -->
     <fieldset
         v-show="isOpen('positie')"
         :id="`${menuId}-positie`"
@@ -214,14 +221,14 @@ function toggleMenu(id) {
         v-show="isOpen('exposure')"
         :id="`${menuId}-exposure`"
         class="functiemenu"
-        :disabled="!belichtingBeschikbaar"
+        :disabled="!lightingAvailable"
     >
       <legend>Exposure — belichting</legend>
 
       <label class="schuifregelaar">
         <span>
           Belichting
-          <output>{{ belichtingWaarde.toFixed(1) }}</output>
+          <output>{{ lightingValue.toFixed(1) }}</output>
         </span>
 
         <input
@@ -229,8 +236,8 @@ function toggleMenu(id) {
             min="-2"
             max="2"
             step="0.1"
-            :value="belichtingWaarde"
-            @input="changeLighting($event.target.value)"
+            :value="lightingValue"
+            @input="handleLightingInput"
             @change="stopColorChange"
             @pointerup="stopColorChange"
             @pointercancel="stopColorChange"
@@ -245,7 +252,7 @@ function toggleMenu(id) {
 
       <button
           type="button"
-          :disabled="belichtingWaarde === 0"
+          :disabled="lightingValue === 0"
           @click="resetLighting"
       >
         Belichting herstellen
@@ -257,18 +264,18 @@ function toggleMenu(id) {
         v-show="isOpen('donkerte')"
         :id="`${menuId}-donkerte`"
         class="functiemenu"
-        :disabled="!achtergrondBestandsnaam"
+        :disabled="!backgroundFileName"
     >
       <legend>Achtergrond verduisteren</legend>
 
       <label class="schuifregelaar">
         <span>
           Donkerte
-          <output>{{ achtergrondDonkerte }}%</output>
+          <output>{{ backgroundDarkness }}%</output>
         </span>
 
         <input
-            v-model.number="achtergrondDonkerte"
+            v-model.number="backgroundDarkness"
             type="range"
             min="0"
             max="100"
@@ -287,7 +294,7 @@ function toggleMenu(id) {
     <button
         class="verwijderen"
         type="button"
-        :disabled="!fileName && !achtergrondBestandsnaam"
+        :disabled="!fileName && !backgroundFileName"
         @click="deletePhoto"
     >
       Geselecteerde afbeelding verwijderen

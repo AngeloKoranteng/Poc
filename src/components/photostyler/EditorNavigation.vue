@@ -1,30 +1,30 @@
 <script setup lang="ts">
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { panelen, actiefPaneel, selectPanel } = usePhotoStylerContext();
+const { panels, activePanel, selectPanel } = usePhotoStylerContext();
 </script>
 
 <template>
-  <!-- Gereedschappen in de linker menubalk. -->
+  <!-- Tools in the left menu bar. -->
   <nav
     class="gereedschappen"
     aria-label="Editorgereedschappen"
   >
     <button
-        v-for="paneel in panelen.filter( item => !['tekenen', 'tekst'].includes(item.id))"
-      :key="paneel.id"
+        v-for="panel in panels.filter( item => !['tekenen', 'tekst'].includes(item.id))"
+      :key="panel.id"
       type="button"
-      :class="{ actief: actiefPaneel === paneel.id }"
-      :aria-pressed="actiefPaneel === paneel.id"
-      @click="selectPanel(paneel.id)"
+      :class="{ actief: activePanel === panel.id }"
+      :aria-pressed="activePanel === panel.id"
+      @click="selectPanel(panel.id)"
     >
       <svg
         viewBox="0 0 24 24"
         aria-hidden="true"
       >
-        <path :d="paneel.icoon" />
+        <path :d="panel.icon" />
       </svg>
-      {{ paneel.naam }}
+      {{ panel.name }}
     </button>
     <span
       class="railvoet"

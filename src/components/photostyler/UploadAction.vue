@@ -2,59 +2,59 @@
 import { computed } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const props = defineProps({ laagId: { type: String, required: true } });
+const props = defineProps({ layerId: { type: String, required: true } });
 const {
-  lagen, geselecteerdeLaag, selectLayer, removeLayer,
+  layers, selectedLayer, selectLayer, removeLayer,
   toggleLayerVisibility, toggleLayerLock, selectPanel,
 } = usePhotoStylerContext();
-const laag = computed(() => lagen.value.find((item) => item.id === props.laagId));
+const layer = computed(() => layers.value.find((item) => item.id === props.layerId));
 
 function remove() {
-  removeLayer(props.laagId);
+  removeLayer(props.layerId);
   selectPanel("uploads");
 }
 </script>
 
 <template>
-  <div v-if="laag?.aanwezig" class="uploadacties" :class="{ geselecteerd: geselecteerdeLaag === laagId }"
-    role="group" :aria-label="`${laag.naam} beheren`">
+  <div v-if="layer?.present" class="uploadacties" :class="{ geselecteerd: selectedLayer === layerId }"
+    role="group" :aria-label="`${layer.name} beheren`">
     <p class="uploadstatus">
-      {{ geselecteerdeLaag === laagId ? 'Geselecteerd' : laag.naam }}
-      · {{ laag.zichtbaar ? 'Zichtbaar' : 'Verborgen' }}
-      <span v-if="laag.vergrendeld"> · Positie vast</span>
+      {{ selectedLayer === layerId ? 'Geselecteerd' : layer.name }}
+      · {{ layer.visible ? 'Zichtbaar' : 'Verborgen' }}
+      <span v-if="layer.locked"> · Positie vast</span>
     </p>
     <div class="actieknoppen">
-      <button type="button" :aria-label="`${laag.naam} selecteren en bewerken`"
-        @click="selectLayer(laagId)">
+      <button type="button" :aria-label="`${layer.name} selecteren en bewerken`"
+        @click="selectLayer(layerId)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-1 5 5-1L20 8l-4-4ZM14 6l4 4" /></svg>
         Bewerken
       </button>
-      <button type="button" :aria-label="`${laag.naam} zichtbaar`" :aria-pressed="laag.zichtbaar"
-        @click="toggleLayerVisibility(laagId)">
+      <button type="button" :aria-label="`${layer.name} zichtbaar`" :aria-pressed="layer.visible"
+        @click="toggleLayerVisibility(layerId)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
           <circle cx="12" cy="12" r="3" />
-          <path v-if="!laag.zichtbaar" d="M3 3l18 18" />
+          <path v-if="!layer.visible" d="M3 3l18 18" />
         </svg>
-        {{ laag.zichtbaar ? 'Verbergen' : 'Tonen' }}
+        {{ layer.visible ? 'Verbergen' : 'Tonen' }}
       </button>
-      <button type="button" :aria-label="`${laag.naam} positie vergrendeld`" :aria-pressed="laag.vergrendeld"
-        @click="toggleLayerLock(laagId)">
+      <button type="button" :aria-label="`${layer.name} positie vergrendeld`" :aria-pressed="layer.locked"
+        @click="toggleLayerLock(layerId)">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="5" y="10" width="14" height="11" rx="2" />
-          <path v-if="laag.vergrendeld" d="M8 10V6a4 4 0 0 1 8 0v4" />
+          <path v-if="layer.locked" d="M8 10V6a4 4 0 0 1 8 0v4" />
           <path v-else d="M8 10V6a4 4 0 0 1 8 0" />
         </svg>
-        {{ laag.vergrendeld ? 'Ontgrendelen' : 'Vastzetten' }}
+        {{ layer.locked ? 'Ontgrendelen' : 'Vastzetten' }}
       </button>
-      <button class="actie-verwijderen" type="button" :aria-label="`${laag.naam} verwijderen`" @click="remove">
+      <button class="actie-verwijderen" type="button" :aria-label="`${layer.name} verwijderen`" @click="remove">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" />
         </svg>
         Verwijderen
       </button>
     </div>
-    <p v-if="!laag.zichtbaar" class="uploaduitleg">Deze afbeelding wordt niet meegenomen in je download.</p>
+    <p v-if="!layer.visible" class="uploaduitleg">Deze afbeelding wordt niet meegenomen in je download.</p>
   </div>
 </template>
 

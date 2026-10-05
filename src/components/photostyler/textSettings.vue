@@ -6,25 +6,25 @@ import { usePhotoStylerContext } from "../../composables/photostyler/context.ts"
 const {
   startCanvasText,
   stopCanvasText,
-  canvasTekstActief,
-  tekstFormulier,
+  canvasTextActive,
+  textForm,
   applyText,
   removeText,
 } = usePhotoStylerContext();
 
-const tekstEditor = ref(null);
+const textEditor = ref<InstanceType<typeof  TextEditor> | null>(null);
 
 async function applyChanges() {
   stopCanvasText();
   applyText();
   await nextTick();
-  tekstEditor.value?.resetSelection();
+  textEditor.value?.resetSelection();
 }
 
 function beforeFormatting() {
-  const canvasWasActief = canvasTekstActief.value;
+  const canvasWasActive = canvasTextActive.value;
   stopCanvasText();
-  if (canvasWasActief) tekstEditor.value?.resetSelection();
+  if (canvasWasActive) textEditor.value?.resetSelection();
 }
 </script>
 <template>
@@ -34,9 +34,9 @@ function beforeFormatting() {
     </button>
 
     <TextEditor
-        ref="tekstEditor"
-        v-model="tekstFormulier"
-        @voor-opmaak="beforeFormatting"
+        ref="textEditor"
+        v-model="textForm"
+        @before-formatting="beforeFormatting"
     />
 
     <p class="kleine-tekst">
@@ -44,7 +44,7 @@ function beforeFormatting() {
       Zonder selectie veranderen Vet en Cursief het hele tekstblok.
     </p>
 
-    <!-- Lettertype, kleur en grootte samen. -->
+    <!-- Font, color, and size together. -->
     <details class="tekst-opties">
       <summary>
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -59,7 +59,7 @@ function beforeFormatting() {
       <div class="tekst-opties-inhoud">
         <label class="tekstveld">
           <span>Lettertype</span>
-          <select v-model="tekstFormulier.lettertype">
+          <select v-model="textForm.fontFamily">
             <option value="Arial">Arial</option>
             <option value="Verdana">Verdana</option>
             <option value="Georgia">Georgia</option>
@@ -71,7 +71,7 @@ function beforeFormatting() {
         <label class="tekstveld">
           <span>Tekstkleur</span>
           <input
-              v-model="tekstFormulier.kleur"
+              v-model="textForm.color"
               type="color"
           />
         </label>
@@ -79,7 +79,7 @@ function beforeFormatting() {
         <label class="tekstveld">
           <span>Lettergrootte in pixels</span>
           <input
-              v-model.number="tekstFormulier.grootte"
+              v-model.number="textForm.size"
               type="number"
               min="8"
               max="160"
@@ -88,7 +88,7 @@ function beforeFormatting() {
       </div>
     </details>
 
-    <!-- Minder vaak gebruikte, precieze positionering. -->
+    <!-- Less frequently used, precise positioning -->
     <details class="tekst-opties">
       <summary>
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -109,7 +109,7 @@ function beforeFormatting() {
           <label class="tekstveld">
             <span>Positie X</span>
             <input
-                v-model.number="tekstFormulier.x"
+                v-model.number="textForm.x"
                 type="number"
                 step="any"
             />
@@ -118,7 +118,7 @@ function beforeFormatting() {
           <label class="tekstveld">
             <span>Positie Y</span>
             <input
-                v-model.number="tekstFormulier.y"
+                v-model.number="textForm.y"
                 type="number"
                 step="any"
             />
@@ -135,7 +135,7 @@ function beforeFormatting() {
     <div class="knoppenrij tekst-acties">
       <button
           type="button"
-          :disabled="!tekstFormulier.inhoud.trim()"
+          :disabled="!textForm.content.trim()"
           @click="applyChanges"
       >
         Tekst toepassen

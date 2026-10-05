@@ -2,20 +2,20 @@
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  actiefPaneel,
+  activePanel,
   fileName,
-  tekenModus,
+  drawingMode,
   toggleBrush,
-  kwastKleur,
-  kwastPalet,
-  kwastGrootte,
+  brushColor,
+  brushPalette,
+  brushSize,
 } = usePhotoStylerContext();
 </script>
 
 <template>
-  <!-- Kwast, kleur en dikte. -->
+  <!-- Brush, color, and thickness. -->
   <section
-    v-show="actiefPaneel === 'tekenen'"
+    v-show="activePanel === 'tekenen'"
     class="paneel"
   >
     <span class="bovenlabel">EEN PERSOONLIJK ACCENT</span>
@@ -31,10 +31,10 @@ const {
       <legend class="sr-only">Kwastinstellingen</legend>
       <button
         class="kwast-knop"
-        :class="{ actief: tekenModus }"
+        :class="{ actief: drawingMode }"
         type="button"
-        :aria-pressed="tekenModus"
-        :aria-label="tekenModus ? 'Kwast uitzetten' : 'Kwast inschakelen'"
+        :aria-pressed="drawingMode"
+        :aria-label="drawingMode ? 'Kwast uitzetten' : 'Kwast inschakelen'"
         @click="toggleBrush"
       >
         <img
@@ -43,7 +43,7 @@ const {
           width="28"
           height="28"
         />
-        <span>Kwast</span><span class="schakelaar">{{ tekenModus ? "Aan" : "Uit" }}</span>
+        <span>Kwast</span><span class="schakelaar">{{ drawingMode ? "Aan" : "Uit" }}</span>
       </button>
       <h3>Kleur</h3>
 
@@ -52,35 +52,35 @@ const {
         <input
           id="kwastkleur"
           type="color"
-          v-model="kwastKleur"
+          v-model="brushColor"
         />
-        <span>{{ kwastKleur.toUpperCase() }}</span>
+        <span>{{ brushColor.toUpperCase() }}</span>
       </div>
       <div
         class="kleurpalet"
         aria-label="Snelle kwastkleuren"
       >
         <button
-          v-for="kleur in kwastPalet"
-          :key="kleur"
+          v-for="color in brushPalette"
+          :key="color"
           type="button"
-          :style="{ background: kleur }"
-          :aria-label="'Kwastkleur ' + kleur"
-          :aria-pressed="kwastKleur === kleur"
-          :class="{ gekozen: kwastKleur === kleur }"
-          @click="kwastKleur = kleur"
+          :style="{ background: color }"
+          :aria-label="'Kwastkleur ' + color"
+          :aria-pressed="brushColor === color"
+          :class="{ chosen: brushColor === color }"
+          @click="brushColor = color"
         />
       </div>
       <label class="schuifregelaar">
         <span
-          >Kwastgrootte <output>{{ kwastGrootte }} px</output></span
+          >Kwastgrootte <output>{{ brushSize }} px</output></span
         >
         <input
           type="range"
           min="1"
           max="80"
           aria-label="Kwastgrootte"
-          v-model.number="kwastGrootte"
+          v-model.number="brushSize"
         />
       </label>
       <div
@@ -89,9 +89,9 @@ const {
       >
         <span
           :style="{
-            width: kwastGrootte + 'px',
-            height: kwastGrootte + 'px',
-            background: kwastKleur,
+            width: brushSize + 'px',
+            height: brushSize + 'px',
+            background: brushColor,
           }"
         ></span>
       </div>

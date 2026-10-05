@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { canvasKlaar,
+const { canvasReady,
     newDesign,
-  conceptBezig,
-  saveConcept,
-  achtergrondIngesteld,
-  lagen,
+  draftBusy,
+  saveDraft,
+  backgroundConfigured,
+  layers,
   fileName,
-  achtergrondBestandsnaam,
-  geschiedenis,
+  backgroundFileName,
+  history,
   undo,
   downloadPhoto } = usePhotoStylerContext();
 </script>
 
 <template>
-  <!-- Titel en vaste acties. -->
+  <!-- Title and recurring promotions. -->
   <header class="bovenbalk">
     <div class="merk">
       <span>Dappre <br>toolkit
@@ -29,17 +29,17 @@ const { canvasKlaar,
      <button
        class="undo"
        type="button"
-       :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
+       :disabled="!canvasReady || draftBusy || history.length === 0"
        title="Bewaar een bewerkbaar concept in deze browser"
-       @click="saveConcept"
+       @click="saveDraft"
        >
-       {{ conceptBezig ? "Even wachten..." : "Concept opslaan" }}
+       {{ draftBusy ? "Even wachten..." : "Concept opslaan" }}
      </button>
 
       <button
         class="undo"
         type="button"
-        :disabled="!canvasKlaar || conceptBezig || geschiedenis.length === 0"
+        :disabled="!canvasReady || draftBusy || history.length === 0"
         title="Wis het huidige ontwerp en begin met leeg canvas"
         @click="newDesign"
         >
@@ -55,7 +55,7 @@ const { canvasKlaar,
         @click="undo"
         title="Ongedaan maken (Ctrl+Z / Cmd+Z)"
         aria-keyshortcuts="Control+Z Meta+Z"
-        :disabled="geschiedenis.length === 0"
+        :disabled="history.length === 0"
       >
         <svg
           viewBox="0 0 24 24"
@@ -70,7 +70,7 @@ const { canvasKlaar,
         class="download"
         type="button"
         @click="downloadPhoto"
-        :disabled="!achtergrondIngesteld && !fileName && !achtergrondBestandsnaam && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
+        :disabled="!backgroundConfigured && !fileName && !backgroundFileName && !layers.some(layer => layer.id === 'tekst' && layer.present)"
       >
         <svg
           viewBox="0 0 24 24"

@@ -1,101 +1,103 @@
 import type { Draft } from "./types.ts";
-// Eén bewerkbaar concept per browser en website. Blobs blijven lokaal.
+import { decodeDraft, encodeDraft } from "./draftFormat.ts";
+// One editable draft per browser and website. Blobs remain local.
 const DATABASE = "photostyler";
-const OPSLAG = "concepten";
-const SLEUTEL = "huidig";
-let transactieNummer = 0;
+// Preserve existing storage names; draftFormat maps the stored field names.
+const STORE_NAME = "concepten";
+const DRAFT_KEY = "huidig";
+let transactionCount = 0;
 
-// Type-definitie voor de logfunctie zodat TypeScript weet hoe deze aangeroepen mag worden
-type LogFunctie = (bericht: string, ...gegevens: unknown[]) => void;
+// Type definition for the log function so that TypeScript knows how to call it
+type LogFunction = (message: string, ...data: unknown[]) => void;
 
-function logDraft(log: LogFunctie, concept: Draft) {
-  for (const veld of ["foto", "achtergrond"] as const) {
-    const bestand = concept[veld] as File | undefined;
-    if (!bestand) {
-      log(`${veld}: geen bestand opgeslagen.`);
+function logDraft(log: LogFunction, draft: Draft) {
+  for (const field of ["image", "background"] as const) {
+    const file = draft[field];
+    if (!file) {
+      log(`${field}: no file stored.`);
       continue;
     }
-    log(`${veld}: het File-object bevat de afbeeldingsbytes, niet alleen de bestandsnaam.`, {
-      naam: bestand.name,
-      type: bestand.type,
-      bytes: bestand.size,
+    log(`${field}: the File object contains the image bytes, not just the file name.`, {
+      name: file.name,
+      type: file.type,
+      bytes: file.size,
     });
-    // Klap dit object in de console open om het echte bestand te bekijken.
-    log(`${veld}: bestand`, bestand);
+    // Expand this object in the console to inspect the actual file.
+    log(`${field}: file`, file);
   }
-  log("Bewerkingen staan apart van de originele foto's:", concept.toestand);
-  log("Verfstreken:", concept.verfstreken);
+  log("Edits are stored separately from the original photos:", draft.condition);
+  log("Paint strokes:", draft.brushstrokes);
 }
 
-export async function draftTransaction(actie: "lezen" | "schrijven" | "verwijderen" | string, concept?: Draft) {
-  const prefix = `[Concept ${++transactieNummer} · ${actie}]`;
-  const log: LogFunctie = (bericht, ...gegevens) => console.info(prefix, bericht, ...gegevens);
+export async function draftTransaction(action: "read" | "write" | "delete" | string, draft?: Draft) {
+  const prefix = `[Draft ${++transactionCount} · ${action}]`;
+  const log: LogFunction = (message, ...data) => console.info(prefix, message, ...data);
 
-  // Door hier expliciet 'IDBDatabase' op te geven, verdwijnt de foutmelding bij db.close()
+  // By explicitly specifying 'IDBDatabase' here, the error message at db.close() disappears.
   let db: IDBDatabase | undefined;
 
   try {
-    log("1. Open IndexedDB. De opslag hoort bij dit websiteadres in deze browser.", {
-      database: DATABASE, opslag: OPSLAG, sleutel: SLEUTEL,
+    log("1. Open IndexedDB. Storage belongs to this website in this browser.", {
+      database: DATABASE, store: STORE_NAME, key: DRAFT_KEY,
     });
     db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const aanvraag = indexedDB.open(DATABASE, 1);
-      aanvraag.onupgradeneeded = () => {
-        log("Eerste gebruik: maak de object store 'concepten' aan.");
-        aanvraag.result.createObjectStore(OPSLAG);
+      const request = indexedDB.open(DATABASE, 1);
+      request.onupgradeneeded = () => {
+        log("First use: create the 'concepten' object store.");
+        request.result.createObjectStore(STORE_NAME);
       };
-      aanvraag.onsuccess = () => resolve(aanvraag.result);
-      aanvraag.onerror = () => reject(aanvraag.error);
-      aanvraag.onblocked = () => reject(new Error("Opslag is geblokkeerd."));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Storage is blocked."));
     });
-    log("2. Database geopend.");
+    log("2. Database opened.");
 
     return await new Promise<Draft | undefined>((resolve, reject) => {
-      const lezen = actie === "lezen";
-      const verwijderen = actie === "verwijderen";
+      const isRead = action === "read";
+      const isDelete = action === "delete";
 
-      if (!["lezen", "schrijven", "verwijderen"].includes(actie)) {
-        reject(new Error(`Onbekende conceptactie: ${actie}`));
+      if (!["read", "write", "delete"].includes(action)) {
+        reject(new Error(`Unknown draft action: ${action}`));
         return;
       }
 
-      // TypeScript weet nu 100% zeker dat db bestaat dankzij de eerdere Promise
-      const transactie = db!.transaction(
-          OPSLAG,
-          lezen ? "readonly" : "readwrite",
+      // TypeScript is now 100% sure that db exists thanks to the previous Promise
+      const transaction = db!.transaction(
+          STORE_NAME,
+          isRead ? "readonly" : "readwrite",
       );
-      const opslag = transactie.objectStore(OPSLAG);
+      const store = transaction.objectStore(STORE_NAME);
 
-      let aanvraag: IDBRequest;
+      let request: IDBRequest;
 
-      if (lezen) {
-        aanvraag = opslag.get(SLEUTEL);
-      } else if (verwijderen) {
-        aanvraag = opslag.delete(SLEUTEL);
+      if (isRead) {
+        request = store.get(DRAFT_KEY);
+      } else if (isDelete) {
+        request = store.delete(DRAFT_KEY);
       } else {
-        if (!concept) { reject(new Error("Geen concept om op te slaan.")); return; }
-        logDraft(log, concept);
-        aanvraag = opslag.put(concept, SLEUTEL);
+        if (!draft) { reject(new Error("No draft to save.")); return; }
+        logDraft(log, draft);
+        request = store.put(encodeDraft(draft), DRAFT_KEY);
       }
 
-      // Wacht tot de volledige transactie succesvol is afgerond.
-      transactie.oncomplete = () => {
-        log(`Conceptactie '${actie}' voltooid.`);
-        resolve(aanvraag.result);
+      // Wait until the entire transaction has been successfully completed.
+      transaction.oncomplete = () => {
+        log(`Draft action '${action}' completed.`);
+        resolve(isRead ? decodeDraft(request.result) : undefined);
       };
 
-      transactie.onerror = () => reject(transactie.error);
-      transactie.onabort = () => reject(
-          transactie.error || new Error("Conceptactie afgebroken."),
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(
+          transaction.error || new Error("Draft action aborted."),
       );
     });
   } catch (error) {
-    console.error(prefix, "Concepttransactie mislukt:", error);
+    console.error(prefix, "Draft transaction failed:", error);
     throw error;
   } finally {
     if (db) {
       db.close();
-      log("6. Databaseverbinding gesloten. De opgeslagen gegevens blijven bewaard.");
+      log("6. Database connection closed. Stored data is preserved.");
     }
   }
 }

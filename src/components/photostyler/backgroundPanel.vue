@@ -1,39 +1,44 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import ColorSliders from "./colorSliders.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  actiefPaneel,
-  achtergrondVoorbeeld,
-  canvasKlaar,
-  achtergrondKanalen,
-  kwastPalet,
-  startColorChange,
+  activePanel,
+  backgroundPreview,
+  canvasReady,
+  backgroundChannels,
+  brushPalette,
   stopColorChange,
   selectBackgroundColor,
 } = usePhotoStylerContext();
 
-// Zet de huidige RGB-waarden om naar een hexkleur.
-// Zo krijgt het gekozen kleurbolletje een rand.
-const gekozenKleur = computed(() =>
-    "#" + achtergrondKanalen
-        .map((kanaal) =>
-            Number(kanaal.waarde.value).toString(16).padStart(2, "0")
+// Convert the current RGB values to a hex color.
+// This gives the selected color circle a border.
+const chosenColor = computed(() =>
+    "#" + backgroundChannels
+        .map((channel) =>
+            Number(channel.value.value).toString(16).padStart(2, "0")
         )
         .join("")
 );
 
 
-function applyHexColor(event) {
-  const veld = event.target;
+function applyColorInput(event: Event, continuous = false) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
 
-  if (!veld.checkValidity()) {
-    veld.reportValidity();
+  selectBackgroundColor(input.value, continuous);
+}
+
+function applyHexColor(event: Event) {
+  const input = event.target as HTMLInputElement;
+
+  if (!input.checkValidity()) {
+    input.reportValidity();
     return;
   }
-  selectBackgroundColor(veld.value.toLowerCase());
-  veld.value = gekozenKleur.value.toUpperCase();
+  selectBackgroundColor(input.value.toLowerCase());
+  input.value = chosenColor.value.toUpperCase();
 }
 
 
@@ -41,40 +46,40 @@ function applyHexColor(event) {
 
 <template>
   <section
-      v-show="actiefPaneel === 'achtergrond'"
+      v-show="activePanel === 'achtergrond'"
       class="paneel"
   >
-    <span class="bovenlabel">LAAT JE CLUBKLEUR ZIEN</span>
+    <span class="bovenlabel">LAAT JE CLUBKLEUREN ZIEN</span>
     <h2>Achtergrond</h2>
-    <p>Kies een achtergrond die bij je club past.</p>
+    <p>Kies een achtergrond die bij uw club past..</p>
 
     <div
         class="kleurvoorbeeld"
-        :style="{ background: achtergrondVoorbeeld }"
-        aria-label="Huidige achtergrondkleur"
+        :style="{ background: backgroundPreview }"
+        aria-label="Current background color"
     ></div>
 
-    <fieldset :disabled="!canvasKlaar">
-      <legend>Achtergrondkleur</legend>
+    <fieldset :disabled="!canvasReady">
+      <legend>Achtergrond kleur</legend>
 
     <label class="kleurkeuze">
-      <span>Achtergrondkleur</span>
+      <span>Achtergrond kleur</span>
 
       <input
         type="color"
-        :value="gekozenKleur"
-        @input="selectBackgroundColor($event.target.value, true)"
-        @change="selectBackgroundColor($event.target.value)"
+        :value="chosenColor"
+        @input="applyColorInput($event, true)"
+        @change="applyColorInput($event)"
         @blur="stopColorChange"
         />
 
     </label>
 
       <label class="tekstveld">
-        <span>Hexkleur</span>
+        <span>Hex color</span>
         <input
           type="text"
-          :value="gekozenKleur.toUpperCase()"
+          :value="chosenColor.toUpperCase()"
           pattern="#[0-9a-fA-F]{6}"
           maxlength="7"
           required
@@ -87,26 +92,26 @@ function applyHexColor(event) {
       <div
           class="kleurpalet"
           role="group"
-          aria-label="Snelle achtergrondkleuren"
+          aria-label="Background color presets"
       >
         <button
-            v-for="kleur in kwastPalet"
-            :key="kleur"
+            v-for="color in brushPalette"
+            :key="color"
             type="button"
-            :style="{ background: kleur }"
-            :aria-label="'Achtergrondkleur ' + kleur"
-            :aria-pressed="gekozenKleur === kleur"
-            :class="{ gekozen: gekozenKleur === kleur }"
-            :title="kleur"
-            @click="selectBackgroundColor(kleur)"
+            :style="{ background: color }"
+            :aria-label="'Background color ' + color"
+            :aria-pressed="chosenColor === color"
+            :class="{ gekozen: chosenColor === color }"
+            :title="color"
+            @click="selectBackgroundColor(color)"
         />
       </div>
 
     </fieldset>
 
     <p class="tip">
-      Je kleur wordt direct toegepast. Een achtergrondfoto wordt verborgen;
-      via Lagen of Ongedaan maken kun je die weer tonen.
+      Je kleur wordt direct toegepast. Een eventuele achtergrondfoto wordt verborgen;
+      gebruik Lagen of Ongedaan maken om deze weer zichtbaar te maken.
     </p>
   </section>
 </template>

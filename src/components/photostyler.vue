@@ -12,23 +12,23 @@ import { usePhotoStyler } from "../composables/photostyler/usePhotoStyler.ts";
 import { providePhotoStyler } from "../composables/photostyler/context.ts";
 
 const editor = usePhotoStyler();
-const { inspectorsVergrendeld, conceptBezig } = editor;
+const { inspectorsLocked, draftBusy } = editor;
 providePhotoStyler(editor);
 </script>
 
 <template>
   <section class="editor">
-    <EditorTopbar :inert="conceptBezig" />
+    <EditorTopbar :inert="draftBusy" />
     <ConceptStatus />
 
-    <div class="editorindeling" :inert="conceptBezig" :aria-busy="conceptBezig">
+    <div class="editorindeling" :inert="draftBusy" :aria-busy="draftBusy">
       <EditorNavigation />
 
       <aside
         class="instellingen"
         aria-label="Gereedschapsinstellingen"
-        :inert="inspectorsVergrendeld"
-        :aria-disabled="inspectorsVergrendeld"
+        :inert="inspectorsLocked"
+        :aria-disabled="inspectorsLocked"
       >
         <UploadPanel />
 

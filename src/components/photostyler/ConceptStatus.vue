@@ -2,23 +2,37 @@
 import { computed } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { conceptStatus, conceptMelding } = usePhotoStylerContext();
-const presentatie = computed(() => ({
-  info: { icoon: "i", titel: "Bewaar je ontwerp om later verder te gaan" },
-  gewijzigd: { icoon: "!", titel: "Nog niet opgeslagen" },
-  bezig: { icoon: "…", titel: "Even geduld" },
-  opgeslagen: { icoon: "✓", titel: "Je concept is bewaard" },
-  fout: { icoon: "!", titel: "Bewaren of laden is niet gelukt" },
-}[conceptStatus.value]));
-</script>
+const { draftStatus, draftMessage } = usePhotoStylerContext();
 
+type Presentation = {
+  icon: string;
+  title: string;
+};
+
+const defaultPresentation: Presentation = {
+  icon: "i",
+  title: "Bewaar je ontwerp om later verder te gaan",
+};
+
+const presentations = new Map<string, Presentation>([
+  ["info", defaultPresentation],
+  ["gewijzigd", { icon: "!", title: "Nog niet opgeslagen" }],
+  ["bezig", { icon: "…", title: "Even geduld" }],
+  ["opgeslagen", { icon: "✓", title: "Je concept is bewaard" }],
+  ["fout", { icon: "!", title: "Bewaren of laden is niet gelukt" }],
+]);
+
+const presentation = computed(
+    () => presentations.get(draftStatus.value) ?? defaultPresentation,
+);
+</script>
 <template>
 
-  <div class="conceptstatus" :class="conceptStatus" role="status" aria-live="polite" aria-atomic="true">
-    <span class="statusicoon" aria-hidden="true">{{ presentatie.icoon }}</span>
+  <div class="conceptstatus" :class="draftStatus" role="status" aria-live="polite" aria-atomic="true">
+    <span class="statusicoon" aria-hidden="true">{{ presentation.icon }}</span>
   <div>
-  <strong> {{ presentatie.titel }}</strong>
-  <p> {{ conceptMelding || "Klik op Concept opslaan. Je ontwerp wordt bewaard in browser" }}</p>
+  <strong> {{ presentation.title }}</strong>
+  <p> {{ draftMessage || "Klik op Concept opslaan. Je ontwerp wordt bewaard in browser" }}</p>
   </div>
   </div>
 

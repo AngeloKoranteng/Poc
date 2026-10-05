@@ -3,45 +3,52 @@ import CanvaTextInput from "./canvaTextInput.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
-  middenlijnen,
-  canvasTekstActief,
+  centerGuides,
+  canvasTextActive,
   startCanvasText,
-  tekenModus,
-  foutmelding,
+  drawingMode,
+  errorMessage,
   canvasHost,
-  lagen,
-    conceptBezig,
-  geselecteerdeLaag,
-  inspectorsVergrendeld,
-  verfCanvas,
+  layers,
+    draftBusy,
+  selectedLayer,
+  paintCanvas,
   startDrawing,
   continueDrawing,
   stopDrawing,
   fileName,
-  canvasKlaar,
-  achtergrondBestandsnaam,
-  achtergrondVoorbeeld,
-  achtergrondIngesteld,
+  canvasReady,
+  backgroundFileName,
+  backgroundPreview,
+  backgroundConfigured,
   selectPanel,
-  bestandInput,
+  fileInput,
 } = usePhotoStylerContext();
+
+function bindCanvasHost(element: unknown) {
+  canvasHost.value = element instanceof HTMLElement ? element : null;
+}
+
+function bindPaintCanvas(element: unknown) {
+  paintCanvas.value = element instanceof HTMLCanvasElement ? element : null;
+}
 </script>
 
 <template>
-  <!-- Canvas met de afbeelding en een aparte verflaag. -->
+<!-- Canvas with the image and a separate layer of paint. -->
   <main
     class="werkruimte"
     aria-label="Ontwerpcanvas"
   >
 
     <p
-      v-if="foutmelding"
+      v-if="errorMessage"
       class="foutmelding"
       role="alert"
     >
-      {{ foutmelding }}
+      {{ errorMessage }}
     </p>
-    <div class="canvasgebied" :inert="conceptBezig">
+    <div class="canvasgebied" :inert="draftBusy">
       <div class="papier">
         <div class="papierkop">
           <span>01 <strong>Jouw clubontwerp</strong></span
@@ -49,12 +56,12 @@ const {
         </div>
         <div
           class="canvas-host"
-          :class="{ 'kwast-actief': tekenModus }"
-          @dblclick="geselecteerdeLaag === 'tekst' && !tekenModus && startCanvasText()"
+          :class="{ 'kwast-actief': drawingMode }"
+          @dblclick="selectedLayer === 'tekst' && !drawingMode && startCanvasText()"
         >
-          <div ref="canvasHost"></div>
+          <div :ref="bindCanvasHost"></div>
           <canvas
-            ref="verfCanvas"
+            :ref="bindPaintCanvas"
             class="verflaag"
             width="800"
             height="500"
@@ -66,9 +73,9 @@ const {
             @lostpointercapture="stopDrawing"
           />
           <div
-              v-if="!achtergrondIngesteld && !fileName && !achtergrondBestandsnaam && !canvasTekstActief && !lagen.some(laag => laag.id === 'tekst' && laag.aanwezig)"
+              v-if="!backgroundConfigured && !fileName && !backgroundFileName && !canvasTextActive && !layers.some(layer => layer.id === 'tekst' && layer.present)"
             class="leeg-canvas"
-            :style="{ background: achtergrondVoorbeeld }"
+            :style="{ background: backgroundPreview }"
           >
             <div
               class="leeg-icoon"
@@ -81,25 +88,25 @@ const {
             <button
               class="primaire-knop"
               type="button"
-              :disabled="!canvasKlaar"
+              :disabled="!canvasReady"
               @click="
                 selectPanel('uploads');
-                bestandInput?.click();
+                fileInput?.click();
               "
             >
               Afbeelding toevoegen
             </button>
           </div>
           <CanvaTextInput />
-          <div v-if="middenlijnen.verticaal" class="middenlijn middenlijn-verticaal" aria-hidden="true"></div>
-          <div v-if="middenlijnen.horizontaal" class="middenlijn middenlijn-horizontaal" aria-hidden="true"></div>
+          <div v-if="centerGuides.vertical" class="middenlijn middenlijn-verticaal" aria-hidden="true"></div>
+          <div v-if="centerGuides.horizontal" class="middenlijn middenlijn-horizontaal" aria-hidden="true"></div>
         </div>
-        <p v-if="canvasTekstActief" class="canvashint">
+        <p v-if="canvasTextActive" class="canvashint">
           Enter: nieuwe regel · Klik buiten de tekst of druk Cmd/Ctrl + Enter om op te slaan · Escape: annuleren
         </p>
         <p v-else class="canvashint">
           {{
-            tekenModus
+            drawingMode
             ? "Sleep om te tekenen · Kies links je kleur en kwastgrootte"
             : "Dubbelklik op tekst om te typen · Sleep om te verplaatsen"
 
@@ -107,7 +114,7 @@ const {
         </p>
 
         <p
-            v-if="achtergrondBestandsnaam && !tekenModus"
+            v-if="backgroundFileName && !drawingMode"
             class="canvashint"
            >
           Sleep de achtergrond op het canvas om de uitsnede te verschuiven.

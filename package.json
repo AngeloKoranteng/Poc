@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "astro dev",
     "test": "node --experimental-vm-modules --test tests/*.test.mjs",
-    "build": "astro check && astro build",
+    "check": "astro check && vue-tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "build": "npm run check && astro build",
     "preview": "astro preview"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "vue": "^3.5.42"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.11"
   }
 }

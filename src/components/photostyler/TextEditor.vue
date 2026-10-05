@@ -1,189 +1,284 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { readFormatting } from "../../composables/photostyler/textLayout.ts";
+import type {
+  TextContent,
+  TextForm,
+} from "../../composables/photostyler/types.ts";
 
-const props = defineProps({ modelValue: { type: Object, required: true } });
-const emit = defineEmits(["update:modelValue", "voor-opmaak"]);
-const veld = ref(null);
-const vet = ref(false);
-const cursief = ref(false);
-let selectie = null;
-let laatsteWaarde = "";
+const props = defineProps<{ modelValue: TextForm }>();
 
-function getTextKey(tekst) {
-  return JSON.stringify([tekst.inhoud, readFormatting(tekst)]);
+const emit = defineEmits<{
+  "update:modelValue": [value: TextForm];
+  "before-formatting": [];
+}>();
+
+const field = ref<HTMLDivElement | null>(null);
+const bold = ref(false);
+const italics = ref(false);
+
+let selection: Range | null = null;
+let lastValue = "";
+
+function getTextKey(text: TextContent) {
+  return JSON.stringify([text.content, readFormatting(text)]);
 }
 
 function saveSelection() {
-  const gekozen = window.getSelection();
-  if (!gekozen?.rangeCount) return;
-  const bereik = gekozen.getRangeAt(0);
-  if (!veld.value?.contains(bereik.commonAncestorContainer)) return;
-  selectie = bereik.cloneRange();
-  vet.value = document.queryCommandState("bold");
-  cursief.value = document.queryCommandState("italic");
+  const chosen = window.getSelection();
+  if (!chosen?.rangeCount) return;
+
+  const range = chosen.getRangeAt(0);
+  if (!field.value?.contains(range.commonAncestorContainer)) return;
+
+  selection = range.cloneRange();
+  bold.value = document.queryCommandState("bold");
+  italics.value = document.queryCommandState("italic");
 }
 
 function restoreSelection() {
-  // Een cursor opnieuw plaatsen wist in sommige browsers de gekozen typstijl.
-  const huidige = window.getSelection();
-  if (document.activeElement === veld.value && huidige?.rangeCount &&
-      veld.value.contains(huidige.getRangeAt(0).commonAncestorContainer)) return;
-  veld.value.focus({ preventScroll: true });
-  const gekozen = window.getSelection();
-  if (!selectie || !veld.value.contains(selectie.commonAncestorContainer)) {
-    selectie = document.createRange();
-    selectie.selectNodeContents(veld.value);
-    selectie.collapse(false);
+  const element = field.value;
+  if (!element) return;
+
+  const current = window.getSelection();
+  if (
+      document.activeElement === element &&
+      current?.rangeCount &&
+      element.contains(current.getRangeAt(0).commonAncestorContainer)
+  ) {
+    return;
   }
-  gekozen.removeAllRanges();
-  gekozen.addRange(selectie);
+
+  element.focus({ preventScroll: true });
+
+  const chosen = window.getSelection();
+  if (!chosen) return;
+
+  if (!selection || !element.contains(selection.commonAncestorContainer)) {
+    selection = document.createRange();
+    selection.selectNodeContents(element);
+    selection.collapse(false);
+  }
+
+  chosen.removeAllRanges();
+  chosen.addRange(selection);
 }
 
 function readField() {
-  let inhoud = "";
-  const opmaak = [];
-  function appendText(tekst, stijl) {
-    inhoud += tekst;
-    opmaak.push(...Array(tekst.length).fill(stijl));
+  let content = "";
+  const formatting: number[] = [];
+
+  function appendText(text: string, style: number) {
+    content += text;
+    formatting.push(...Array<number>(text.length).fill(style));
   }
-  function readNode(node, stijl = 0) {
+
+  function readNode(node: Node, style = 0) {
     if (node.nodeType === Node.TEXT_NODE) {
-      appendText(node.textContent, stijl);
+      appendText(node.textContent ?? "", style);
       return;
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const gewicht = node.style.fontWeight;
-    if (node.matches("b, strong") || gewicht === "bold" || Number(gewicht) >= 600) stijl |= 1;
-    if (gewicht === "normal" || (gewicht && Number(gewicht) < 600)) stijl &= ~1;
-    if (node.matches("i, em") || node.style.fontStyle === "italic") stijl |= 2;
-    if (node.style.fontStyle === "normal") stijl &= ~2;
+
+    if (!(node instanceof HTMLElement)) return;
+
+    const weight = node.style.fontWeight;
+
+    if (
+        node.matches("b, strong") ||
+        weight === "bold" ||
+        Number(weight) >= 600
+    ) {
+      style |= 1;
+    }
+
+    if (weight === "normal" || (weight && Number(weight) < 600)) {
+      style &= ~1;
+    }
+
+    if (node.matches("i, em") || node.style.fontStyle === "italic") {
+      style |= 2;
+    }
+
+    if (node.style.fontStyle === "normal") {
+      style &= ~2;
+    }
+
     if (node.tagName === "BR") {
-      // Een laatste br is de lege invoerregel van de browser.
-      if (node.nextSibling) appendText("\n", stijl);
+      // A trailing br is the browser’s empty input line.
+      if (node.nextSibling) appendText("\n", style);
       return;
     }
-    let vorigBlok = false;
-    Array.from(node.childNodes).forEach((kind, index) => {
-      const blok = kind.nodeType === Node.ELEMENT_NODE && kind.matches("div, p");
-      if (index > 0 && (blok || vorigBlok)) appendText("\n", stijl);
-      readNode(kind, stijl);
-      vorigBlok = blok;
+
+    let previousBlock = false;
+
+    Array.from(node.childNodes).forEach((child, index) => {
+      const block = child instanceof HTMLElement && child.matches("div, p");
+
+      if (index > 0 && (block || previousBlock)) {
+        appendText("\n", style);
+      }
+
+      readNode(child, style);
+      previousBlock = block;
     });
   }
-  readNode(veld.value);
-  return { ...props.modelValue, inhoud, opmaak };
+
+  if (field.value) readNode(field.value);
+
+  return { ...props.modelValue, content, formatting };
 }
 
 function syncContent() {
-  const tekst = readField();
-  // Ook plakken en invoer via een mobiel toetsenbord respecteren de limiet.
-  if (tekst.inhoud.length > 500) {
-    tekst.inhoud = tekst.inhoud.slice(0, 500);
-    tekst.opmaak = tekst.opmaak.slice(0, 500);
-    renderText(tekst);
+  if (!field.value) return;
+
+  const text = readField();
+
+  if (text.content.length > 500) {
+    text.content = text.content.slice(0, 500);
+    text.formatting = text.formatting.slice(0, 500);
+    renderText(text);
     restoreSelection();
   }
-  laatsteWaarde = getTextKey(tekst);
-  emit("update:modelValue", tekst);
+
+  lastValue = getTextKey(text);
+  emit("update:modelValue", text);
   saveSelection();
 }
 
-async function toggleFormatting(opdracht) {
-  // Eerst eventuele tekstinvoer op het canvas afronden: die mag de nieuwe
-  // formulieropmaak niet later overschrijven wanneer het canvas focus verliest.
-  emit("voor-opmaak");
+async function toggleFormatting(command: "bold" | "italic") {
+  emit("before-formatting");
   await nextTick();
+
+  if (!field.value) return;
+
   restoreSelection();
-  const gekozen = window.getSelection();
-  const heelBlok = gekozen.isCollapsed && readField().inhoud.length > 0;
-  if (heelBlok) {
-    const bereik = document.createRange();
-    bereik.selectNodeContents(veld.value);
-    gekozen.removeAllRanges();
-    gekozen.addRange(bereik);
+
+  const chosen = window.getSelection();
+  if (!chosen) return;
+
+  const wholeBlock = chosen.isCollapsed && readField().content.length > 0;
+
+  if (wholeBlock) {
+    const range = document.createRange();
+    range.selectNodeContents(field.value);
+    chosen.removeAllRanges();
+    chosen.addRange(range);
   }
-  // De browser bewaart hierbij zowel de typstijl als de lokale undo-geschiedenis.
-  document.execCommand(opdracht);
-  if (heelBlok) gekozen.collapseToEnd();
+
+  document.execCommand(command);
+
+  if (wholeBlock) chosen.collapseToEnd();
+
   syncContent();
 }
 
 function resetSelection() {
-  selectie = null;
-  const opmaak = readFormatting(props.modelValue);
-  vet.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 1) !== 0);
-  cursief.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 2) !== 0);
+  selection = null;
+
+  const formatting = readFormatting(props.modelValue);
+
+  bold.value =
+      formatting.length > 0 && formatting.every((value) => (value & 1) !== 0);
+
+  italics.value =
+      formatting.length > 0 && formatting.every((value) => (value & 2) !== 0);
 }
 
 defineExpose({ resetSelection });
 
-function handlePaste(event) {
+function handlePaste(event: ClipboardEvent) {
   event.preventDefault();
-  const gekozen = window.getSelection()?.toString().length ?? 0;
-  const ruimte = Math.max(0, 500 - readField().inhoud.length + gekozen);
-  const tekst = event.clipboardData.getData("text/plain").slice(0, ruimte);
-  document.execCommand("insertText", false, tekst);
+
+  if (!event.clipboardData) return;
+
+  const chosen = window.getSelection()?.toString().length ?? 0;
+  const room = Math.max(0, 500 - readField().content.length + chosen);
+  const text = event.clipboardData.getData("text/plain").slice(0, room);
+
+  document.execCommand("insertText", false, text);
   syncContent();
 }
 
-function beforeInput(event) {
+function beforeInput(event: Event) {
+  if (!(event instanceof InputEvent)) return;
   if (event.isComposing || !event.inputType.startsWith("insert")) return;
-  const gekozen = window.getSelection()?.toString().length ?? 0;
-  if (readField().inhoud.length - gekozen >= 500) event.preventDefault();
-}
 
-function renderText(tekst) {
-  if (!veld.value) return;
-  const opmaak = readFormatting(tekst);
-  const fragment = document.createDocumentFragment();
-  for (let begin = 0; begin < tekst.inhoud.length;) {
-    let einde = begin + 1;
-    while (einde < tekst.inhoud.length && opmaak[einde] === opmaak[begin]) einde++;
-    const span = document.createElement("span");
-    span.textContent = tekst.inhoud.slice(begin, einde);
-    span.style.fontWeight = opmaak[begin] & 1 ? "bold" : "normal";
-    span.style.fontStyle = opmaak[begin] & 2 ? "italic" : "normal";
-    fragment.append(span);
-    begin = einde;
+  const chosen = window.getSelection()?.toString().length ?? 0;
+
+  if (readField().content.length - chosen >= 500) {
+    event.preventDefault();
   }
-  veld.value.replaceChildren(fragment);
-  selectie = null;
-  vet.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 1) !== 0);
-  cursief.value = opmaak.length > 0 && opmaak.every(waarde => (waarde & 2) !== 0);
-  laatsteWaarde = getTextKey(tekst);
 }
 
-watch(() => getTextKey(props.modelValue), (waarde) => {
-  if (waarde !== laatsteWaarde) renderText(props.modelValue);
-});
+function renderText(text: TextContent) {
+  if (!field.value) return;
+
+  const formatting = readFormatting(text);
+  const fragment = document.createDocumentFragment();
+
+  for (let start = 0; start < text.content.length;) {
+    let end = start + 1;
+
+    while (
+        end < text.content.length &&
+        formatting[end] === formatting[start]
+        ) {
+      end++;
+    }
+
+    const style = formatting[start] ?? 0;
+    const span = document.createElement("span");
+
+    span.textContent = text.content.slice(start, end);
+    span.style.fontWeight = style & 1 ? "bold" : "normal";
+    span.style.fontStyle = style & 2 ? "italic" : "normal";
+
+    fragment.append(span);
+    start = end;
+  }
+
+  field.value.replaceChildren(fragment);
+  resetSelection();
+  lastValue = getTextKey(text);
+}
+
+watch(
+    () => getTextKey(props.modelValue),
+    (value) => {
+      if (value !== lastValue) {
+        renderText(props.modelValue);
+      }
+    },
+);
 
 onMounted(() => {
   renderText(props.modelValue);
   document.addEventListener("selectionchange", saveSelection);
 });
-onBeforeUnmount(() => document.removeEventListener("selectionchange", saveSelection));
-</script>
 
+onBeforeUnmount(() => {
+  document.removeEventListener("selectionchange", saveSelection);
+});
+</script>
 <template>
   <div class="tekstveld">
     <span>Jouw tekst</span>
     <div class="tekstopmaak" role="group" aria-label="Tekstopmaak">
-      <button type="button" :aria-pressed="vet" @mousedown.prevent @click="toggleFormatting('bold')">
+      <button type="button" :aria-pressed="bold" @mousedown.prevent @click="toggleFormatting('bold')">
         <strong>Vet</strong>
       </button>
-      <button type="button" :aria-pressed="cursief" @mousedown.prevent @click="toggleFormatting('italic')">
+      <button type="button" :aria-pressed="italics" @mousedown.prevent @click="toggleFormatting('italic')">
         <em>Cursief</em>
       </button>
     </div>
     <div
-      ref="veld"
+      ref="field"
       class="rijke-tekstinvoer"
       contenteditable="true"
       role="textbox"
       aria-label="Jouw tekst"
       aria-multiline="true"
-      :style="{ fontFamily: modelValue.lettertype ?? 'Arial' }"
+      :style="{ fontFamily: modelValue.fontFamily ?? 'Arial' }"
       data-placeholder="Bijvoorbeeld: Samen voor onze club!"
       @beforeinput="beforeInput"
       @input="syncContent"

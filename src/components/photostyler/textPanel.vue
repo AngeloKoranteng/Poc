@@ -2,19 +2,19 @@
 import TextSettings from "./textSettings.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { actiefPaneel, canvasKlaar } = usePhotoStylerContext();
+const { activePanel, canvasReady } = usePhotoStylerContext();
 </script>
 
 <template>
-  <!-- Een eigen paneel voor tekst, opmaak en positie. -->
-  <section v-show="actiefPaneel === 'tekst'" class="paneel">
+  <!-- A custom panel for text, formatting, and position. -->
+  <section v-show="activePanel === 'tekst'" class="paneel">
     <span class="bovenlabel">GEEF JE ONTWERP EEN BOODSCHAP</span>
     <h2>Tekst</h2>
     <p>Voeg tekst toe en kies de kleur, grootte en positie.</p>
-    <p v-if="!canvasKlaar" class="tip">
+    <p v-if="!canvasReady" class="tip">
       Het canvas wordt geladen.
     </p>
-    <fieldset :disabled="!canvasKlaar">
+    <fieldset :disabled="!canvasReady">
       <legend class="sr-only">Tekstinstellingen</legend>
       <TextSettings />
     </fieldset>

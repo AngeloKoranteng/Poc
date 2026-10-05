@@ -15,12 +15,12 @@ export function usePaintLayer({
   verfCanvas, tekenModus, canvasKlaar, kwastKleur, kwastGrootte,
   hasPhoto, stopDrag, stopColorChange, saveState,
 }: PaintOptions) {
-  // Verfstreken, de huidige streek en de actieve aanwijzer.
-  let verfstreken: PaintStroke[] = [];
+  // Paint strokes, the current stroke and the pointer.
+  let brushstrokes: PaintStroke[] = [];
   let actieveStreek: PaintStroke | null = null;
   let tekenPointer: number | null = null;
 
-  // Rekent de aanwijzerpositie om naar canvascoordinaten.
+  //converts the pointer position to canvas coordinates
   function getDrawingPoint(event: PointerEvent) {
     const rechthoek = verfCanvas.value!.getBoundingClientRect();
     return {
@@ -29,18 +29,18 @@ export function usePaintLayer({
     };
   }
 
-  // Tekent een ronde stip of een lijnstuk op de verflaag.
+  // Draws a round dot or line segment on the paint layer
   function paintSegment(streek: PaintStroke, van: Point, naar = van) {
     const context = verfCanvas.value?.getContext("2d");
     if (!context) return;
-    context.fillStyle = streek.kleur;
-    context.strokeStyle = streek.kleur;
-    context.lineWidth = streek.grootte;
+    context.fillStyle = streek.color;
+    context.strokeStyle = streek.color;
+    context.lineWidth = streek.size;
     context.lineCap = "round";
     context.lineJoin = "round";
     context.beginPath();
     if (van.x === naar.x && van.y === naar.y) {
-      context.arc(van.x, van.y, streek.grootte / 2, 0, Math.PI * 2);
+      context.arc(van.x, van.y, streek.size / 2, 0, Math.PI * 2);
       context.fill();
     } else {
       context.moveTo(van.x, van.y);
@@ -49,7 +49,7 @@ export function usePaintLayer({
     }
   }
 
-  // Begint een kwaststreek met de gekozen kleur en dikte.
+  // Start a brushstroke with the chosen color and thickness.
   function startDrawing(event: PointerEvent) {
     if (
       !verfCanvas.value ||
@@ -69,26 +69,26 @@ export function usePaintLayer({
     tekenPointer = event.pointerId;
     verfCanvas.value.setPointerCapture(tekenPointer);
     actieveStreek = {
-      kleur: kwastKleur.value,
-      grootte: Math.max(1, Math.min(80, Number(kwastGrootte.value) || 1)),
-      punten: [getDrawingPoint(event)],
+      color: kwastKleur.value,
+      size: Math.max(1, Math.min(80, Number(kwastGrootte.value) || 1)),
+      points: [getDrawingPoint(event)],
     };
-    verfstreken.push(actieveStreek);
-    paintSegment(actieveStreek, actieveStreek.punten[0]);
+    brushstrokes.push(actieveStreek);
+    paintSegment(actieveStreek, actieveStreek.points[0]);
   }
 
-  // Voegt tijdens het bewegen punten toe aan de kwaststreek.
+  // Adds points to the brushstroke as it moves
   function continueDrawing(event: PointerEvent) {
     if (!actieveStreek || event.pointerId !== tekenPointer) return;
     event.preventDefault();
     const punt = getDrawingPoint(event);
-    const vorigPunt = actieveStreek.punten[actieveStreek.punten.length - 1];
+    const vorigPunt = actieveStreek.points[actieveStreek.points.length - 1];
     if (punt.x === vorigPunt.x && punt.y === vorigPunt.y) return;
-    actieveStreek.punten.push(punt);
+    actieveStreek.points.push(punt);
     paintSegment(actieveStreek, vorigPunt, punt);
   }
 
-  // Rondt de kwaststreek af en laat de aanwijzer los.
+  // Finish the brushstroke and release pointer
   function stopDrawing(event?: PointerEvent) {
     if (tekenPointer === null || (event && event.pointerId !== tekenPointer)) return;
     if (event?.type === "pointerup") continueDrawing(event);
@@ -100,31 +100,31 @@ export function usePaintLayer({
     }
   }
 
-  // Bouwt de verflaag opnieuw op uit de overgebleven streken.
+  // Rebuild the paint layer from the remaining strokes
   function restorePaintLayer(aantal = 0) {
     stopDrawing();
-    verfstreken.length = aantal;
+    brushstrokes.length = aantal;
     const canvas = verfCanvas.value;
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    for (const streek of verfstreken) {
-      paintSegment(streek, streek.punten[0]);
-      for (let index = 1; index < streek.punten.length; index++) {
-        paintSegment(streek, streek.punten[index - 1], streek.punten[index]);
+    for (const streek of brushstrokes) {
+      paintSegment(streek, streek.points[0]);
+      for (let index = 1; index < streek.points.length; index++) {
+        paintSegment(streek, streek.points[index - 1], streek.points[index]);
       }
     }
   }
 
   function readPaintStrokes(): PaintStroke[] {
-    return JSON.parse(JSON.stringify(verfstreken));
+    return JSON.parse(JSON.stringify(brushstrokes));
   }
 
   function loadPaintStrokes(streken: PaintStroke[]) {
     stopDrawing();
-    verfstreken = JSON.parse(JSON.stringify(streken));
-    restorePaintLayer(verfstreken.length);
+    brushstrokes = JSON.parse(JSON.stringify(streken));
+    restorePaintLayer(brushstrokes.length);
   }
 
   return { readPaintStrokes, loadPaintStrokes, startDrawing, continueDrawing, stopDrawing, restorePaintLayer,
-    getPaintStrokeCount: () => verfstreken.length,
+    getPaintStrokeCount: () => brushstrokes.length,
   };
 }
