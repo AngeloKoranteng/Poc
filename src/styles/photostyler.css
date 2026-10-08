@@ -367,6 +367,26 @@ line-height: 1.2;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+:deep(.schuifregelaar .waarde-vakje) {
+  box-sizing: border-box;
+  width: 47px;
+  min-width: 0;
+  min-height: 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: #f0f3f0;
+  color: inherit;
+  text-align: center;
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+}
+:deep(.schuifregelaar .waarde-vakje:focus-visible) {
+  outline: 2px solid #0e7490;
+  outline-offset: 2px;
+}
 :deep(input[type="range"]) {
   width: 100%;
   margin: 0;
@@ -553,6 +573,32 @@ line-height: 1.2;
     url("/kwast.svg") 3 29,
     crosshair !important;
 }
+:deep(.waarde-met-eenheid) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+:deep(.schuifregelaar .waarde-invoer) {
+  box-sizing: border-box;
+  width: 76px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #cbd5dc;
+  border-radius: 8px;
+  background: #f7fafb;
+  color: #243746;
+  text-align: center;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+deep(.schuifregelaar .waarde-invoer:focus) {
+  outline: 2px solid #0e7490;
+  outline-offset: 2px;
+  background: white;
+}
+
 /* Startscherm voordat een afbeelding is gekozen. */
 :deep(.leeg-canvas) {
   position: absolute;

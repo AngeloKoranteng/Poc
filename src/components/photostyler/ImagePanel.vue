@@ -70,6 +70,33 @@ function toggleMenu(id: string) {
   }
 }
 
+function updateNumber(event: Event, setting: "exposure" | "donkerte") {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const text = input.value.trim().replace(/%$/, "").trim().replace(",", ".");
+  const number = Number(text);
+
+  if (text !== "" && Number.isFinite(number)) {
+    if (setting === "exposure") {
+      const value = Math.max(-2, Math.min(2, number));
+      changeLighting(Math.round(value * 10) / 10);
+    } else {
+      startColorChange();
+      backgroundDarkness.value = Math.max(
+          0,
+          Math.min(100, Math.round(number)),
+      );
+    }
+    stopColorChange();
+  }
+
+  // Toon de toegepaste waarde, ook na lege of ongeldige invoer.
+  input.value = setting === "exposure"
+      ? lightingValue.value.toFixed(1)
+      : `${backgroundDarkness.value}%`;
+}
+
 function handleLightingInput(event: Event) {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -225,26 +252,35 @@ function handleLightingInput(event: Event) {
     >
       <legend>Exposure — belichting</legend>
 
-      <label class="schuifregelaar">
+      <div class="schuifregelaar">
         <span>
           Belichting
-          <output>{{ lightingValue.toFixed(1) }}</output>
+          <input
+            class="waarde-vakje"
+            type="text"
+            inputmode="decimal"
+            aria-label="Belichting, van min 2 tot 2"
+            :value="lightingValue.toFixed(1)"
+            @focus="($event.target as HTMLInputElement).select()"
+            @blur="updateNumber($event, 'exposure')"
+            @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+          />
         </span>
-
         <input
-            type="range"
-            min="-2"
-            max="2"
-            step="0.1"
-            :value="lightingValue"
-            @input="handleLightingInput"
-            @change="stopColorChange"
-            @pointerup="stopColorChange"
-            @pointercancel="stopColorChange"
-            @keyup="stopColorChange"
-            @blur="stopColorChange"
+          type="range"
+          aria-label="Belichting"
+          min="-2"
+          max="2"
+          step="0.1"
+          :value="lightingValue"
+          @input="handleLightingInput"
+          @change="stopColorChange"
+          @pointerup="stopColorChange"
+          @pointercancel="stopColorChange"
+          @keyup="stopColorChange"
+          @blur="stopColorChange"
         />
-      </label>
+      </div>
 
       <p class="kleine-tekst">
         Naar links maakt de afbeelding donkerder, naar rechts lichter.
@@ -268,27 +304,36 @@ function handleLightingInput(event: Event) {
     >
       <legend>Achtergrond verduisteren</legend>
 
-      <label class="schuifregelaar">
+      <div class="schuifregelaar">
         <span>
           Donkerte
-          <output>{{ backgroundDarkness }}%</output>
+          <input
+            class="waarde-vakje"
+            type="text"
+            inputmode="numeric"
+            aria-label="Achtergrond donkerte, van 0 tot 100 procent"
+            :value="`${backgroundDarkness}%`"
+            @focus="($event.target as HTMLInputElement).select()"
+            @blur="updateNumber($event, 'donkerte')"
+            @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+          />
         </span>
-
         <input
-            v-model.number="backgroundDarkness"
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            @pointerdown="startColorChange"
-            @keydown="startColorChange"
-            @change="stopColorChange"
-            @pointerup="stopColorChange"
-            @pointercancel="stopColorChange"
-            @keyup="stopColorChange"
-            @blur="stopColorChange"
+          v-model.number="backgroundDarkness"
+          type="range"
+          aria-label="Achtergrond donkerte"
+          min="0"
+          max="100"
+          step="1"
+          @pointerdown="startColorChange"
+          @keydown="startColorChange"
+          @change="stopColorChange"
+          @pointerup="stopColorChange"
+          @pointercancel="stopColorChange"
+          @keyup="stopColorChange"
+          @blur="stopColorChange"
         />
-      </label>
+      </div>
     </fieldset>
 
     <button
