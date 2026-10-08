@@ -27,7 +27,7 @@ const { canvasReady,
     </div>
     <div class="hoofdacties">
      <button
-       class="undo"
+       class="undo actie-opslaan"
        type="button"
        :disabled="!canvasReady || draftBusy || history.length === 0"
        title="Bewaar een bewerkbaar concept in deze browser"
@@ -37,7 +37,8 @@ const { canvasReady,
      </button>
 
       <button
-        class="undo"
+        class="undo actie-nieuw"
+        aria-label="Nieuw ontwerp"
         type="button"
         :disabled="!canvasReady || draftBusy || history.length === 0"
         title="Wis het huidige ontwerp en begin met leeg canvas"
@@ -50,7 +51,8 @@ const { canvasReady,
       </button>
 
       <button
-        class="undo"
+        class="undo actie-ongedaan"
+        aria-label="Ongedaan maken"
         type="button"
         @click="undo"
         title="Ongedaan maken (Ctrl+Z / Cmd+Z)"
@@ -67,7 +69,7 @@ const { canvasReady,
       </button>
 
       <button
-        class="download"
+        class="download actie-download"
         type="button"
         @click="downloadPhoto"
         :disabled="!backgroundConfigured && !fileName && !backgroundFileName && !layers.some(layer => layer.id === 'tekst' && layer.present)"

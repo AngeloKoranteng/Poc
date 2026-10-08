@@ -128,12 +128,12 @@
   flex-shrink: 0;
 }
 :deep(.bovenbalk .undo) {
-  background: transparent;
-  color: white;
-  border-color: #ffffff35;
+  background: white;
+  color: #334155;
+  border-color: #cbd5e1;
 }
 :deep(.bovenbalk .undo:hover:not(:disabled)) {
-  background: #ffffff15;
+  background: #f1f5f9;
 }
 :deep(.download) {
   background: #00ABC1;
@@ -651,11 +651,23 @@ line-height: 1.2;
     font-size: 17px;
   }
   :deep(.ontwerpnaam) {
-    order: 3;
-    width: 100%;
+    order: 0;
+    width: auto;
     border: 0;
-    padding: 0;
+    padding: 16px;
   }
+  :deep(.ontwerpnaam h1){
+    margin: 0;
+    max-width: 100%;
+    color: white;
+    font-size: 17px;
+  }
+  :deep(.instellingen){
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+
   :deep(h1) {
     max-width: 100%;
   }
@@ -663,37 +675,80 @@ line-height: 1.2;
     display: none;
   }
   :deep(.hoofdacties) {
-    gap: 7px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin: 0;
+    padding: 8px 12px;
+    background: white;
   }
   :deep(.hoofdacties button) {
-    padding: 9px;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 12px;
   }
+  :deep(.hoofdacties .download) {
+    background: #2db8ca;
+    border-color: #2db8ca;
+    color: white;
+  }
+  :deep(.hoofdacties .download svg),
+  :deep(.hoofdacties .formaat) {
+    display: none;
+  }
+  :deep(.conceptstatus strong) {
+    font-size: 14px;
+  }
+
+  :deep(.conceptstatus p) {
+    margin: 6px 0 0;
+    font-size: 12px;
+  }
+
   :deep(.formaat) {
     display: none;
   }
   :deep(.editorindeling) {
-    grid-template-columns: minmax(0, 1fr);
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 0;
+    padding-bottom: 24px;
+    background: #e7e5e2;
   }
-  :deep(.gereedschappen) {
-    flex-direction: row;
+
+  :deep(.conceptstatus){
+    margin: 12px;
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  :deep(.gereedschappen){
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
     gap: 6px;
-    padding: 8px 12px;
-    border-bottom: 1px solid #e5ebe7;
+    padding: 8px 4px;
+    overflow-x: hidden;
+    border-right: 1px solid #e5ebe7;
+    border-bottom: 0;
   }
+
   :deep(.gereedschappen button) {
-    flex: 1;
-    min-height: 62px;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 60px;
     padding: 8px 2px;
   }
-  :deep(.railvoet) {
-    display: none;
+    :deep(.railvoet){
+      display: none;
+    }
   }
   :deep(.paneel) {
     padding: 22px;
   }
-  :deep(.instellingen) {
-    border-right: 0;
-  }
+
   :deep(.paneel h2) {
     font-size: 20px;
   }
@@ -707,7 +762,7 @@ line-height: 1.2;
     margin-top: 16px;
   }
   :deep(.werkruimte) {
-    min-height: 420px;
+    min-width: 0;
   }
   :deep(.canvasgebied) {
     padding: 25px 18px;
@@ -726,8 +781,6 @@ line-height: 1.2;
   :deep(.leeg-canvas p) {
     margin-bottom: 12px;
   }
-}
-
 
 /* Invoervelden voor tekst en tekstinstellingen. */
 :deep(.tekstveld) {
@@ -851,16 +904,176 @@ line-height: 1.2;
     }
   }
 
-  /* Mobiel: instellingen en canvas onder elkaar. */
+  /* Mobiel: gereedschappen links, instellingen onder de werkruimte. */
   @media (max-width: 760px) {
+    :deep(.conceptstatus) {
+      margin: 10px 12px 0;
+      padding: 10px 12px;
+      gap: 10px;
+      border-left-width: 3px;
+      border-radius: 10px;
+      align-items: flex-start;
+    }
+
+    :deep(.conceptstatus > div) {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    :deep(.conceptstatus strong) {
+      display: block;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    :deep(.conceptstatus p) {
+      margin: 3px 0 0;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    :deep(.conceptstatus .statusicoon) {
+      flex-basis: 22px;
+      height: 22px;
+      font-size: 14px;
+      border-width: 1px;
+    }
+
     :deep(.editorindeling) {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: 76px minmax(0, 1fr);
+      grid-template-rows: auto auto;
       min-height: 0;
+      gap: 12px 0;
+      padding: 12px 0 20px;
+      background: #f1f4f5;
     }
 
     :deep(.instellingen){
-    border-right: 0;
-      border-bottom: 1px solid #e5ebe7
+      grid-column: 1 / -1;
+      grid-row: 2;
+      border-right: 0;
+      border: 1px solid #e2e8eb;
+      border-radius: 14px;
+      margin: 0 12px;
+      overflow: hidden;
+    }
+
+    :deep(.instellingen .paneel) {
+      padding: 18px 16px;
+    }
+
+    :deep(.paneel > .bovenlabel) {
+      display: none;
+    }
+
+    :deep(.paneel h2) {
+      margin: 0 0 6px;
+      font-size: 19px;
+      letter-spacing: -0.3px;
+      color: #243746;
+    }
+
+    :deep(.paneel > p) {
+      margin: 0 0 18px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    :deep(.paneel h3) {
+      margin: 18px 0 8px;
+      font-size: 13px;
+    }
+
+    :deep(.paneel .uploadveld) {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: 3px 12px;
+      padding: 14px;
+      text-align: left;
+      border: 1px dashed #b5cbd0;
+      background: #f7fafb;
+      border-radius: 10px;
+    }
+
+    :deep(.uploadveld > .upload-icoon),
+    :deep(.uploadveld > .upload-preview) {
+      grid-column: 1;
+      grid-row: 1 / 3;
+      width: 40px;
+      height: 40px;
+      margin: 0;
+      border-radius: 8px;
+      background-color: #e0f4f7;
+      color: #08788b;
+    }
+
+    :deep(.uploadveld > strong),
+    :deep(.uploadveld > span:last-child) {
+      grid-column: 2;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    :deep(.uploadveld > strong) {
+      font-size: 13px;
+      color: #243746;
+    }
+
+    :deep(.uploadveld > span:last-child) {
+      font-size: 11px;
+      line-height: 1.5;
+      color: #63747c;
+    }
+
+    :deep(.gereedschappen){
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
+      align-self: start;
+      flex-direction: column;
+      gap: 4px;
+      margin-left: 6px;
+      padding: 4px;
+      overflow-x: hidden;
+      background: #fff;
+      border: 1px solid #e2e8eb;
+      border-radius: 14px;
+      box-shadow: 0 2px 8px #183d3208;
+    }
+
+    :deep(.gereedschappen button) {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+      min-height: 64px;
+      gap: 7px;
+      padding: 10px 0;
+      border-radius: 10px;
+      color: #63747c;
+      font-size: 10px;
+      line-height: 1.2;
+      font-weight: 500;
+    }
+
+    :deep(.gereedschappen button svg) {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    :deep(.gereedschappen button.actief) {
+      background: #e0f4f7;
+      color: #08788b;
+      font-weight: 650;
+      box-shadow: inset 3px 0 #0e7490;
+    }
+
+    :deep(.werkruimte){
+      grid-column: 2;
+      grid-row: 1;
+      min-width: 0;
+      min-height: 0;
+      background: transparent;
     }
 
     :deep(.hoofdacties){
@@ -868,12 +1081,50 @@ line-height: 1.2;
       max-width: 100%;
     }
 
-    :deep(.werkruimte){
-      min-height: 0;
-    }
 
     :deep(.canvasgebied){
-      padding: 16px 12px;
+      align-items: flex-start;
+      padding: 8px 10px;
+    }
+
+    :deep(.papierkop) {
+      gap: 4px;
+      align-items: baseline;
+      margin-bottom: 10px;
+      letter-spacing: 0;
+    }
+
+    :deep(.papierkop strong) {
+      margin-left: 4px;
+      font-size: 11px;
+    }
+
+    :deep(.leeg-canvas) {
+      padding: 8px;
+      gap: 8px;
+    }
+
+    :deep(.leeg-canvas .leeg-icoon),
+    :deep(.leeg-canvas p) {
+      display: none;
+    }
+
+    :deep(.leeg-canvas h2) {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.3;
+      color: #334650;
+    }
+
+    :deep(.leeg-canvas .primaire-knop) {
+      max-width: 100%;
+      min-height: 44px;
+      padding: 8px 10px;
+      font-size: 11px;
+    }
+
+    :deep(.werkruimtevoet) {
+      display: none;
     }
 
     :deep(.knopperij > *){
@@ -887,7 +1138,10 @@ line-height: 1.2;
     }
 
     :deep(.canvashint){
-      margin-top: 12px;
+      margin: 10px 0 0;
+      color: #73838a;
+      font-size: 11px;
+      line-height: 1.5;
     }
   }
   }
@@ -909,4 +1163,170 @@ line-height: 1.2;
   left: 0;
   right: 0;
   height: 1px;
+}
+
+/* Elke bovenbalkactie heeft een herkenbare kleur en vorm. */
+:deep(.bovenbalk .actie-opslaan) {
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+}
+
+:deep(.bovenbalk .actie-opslaan:hover:not(:disabled)) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+:deep(.bovenbalk .actie-nieuw) {
+  background: #f0fdf4;
+  border: 1px solid #15803d;
+  border-radius: 8px;
+  color: #166534;
+}
+
+:deep(.bovenbalk .actie-nieuw:hover:not(:disabled)) {
+  background: #dcfce7;
+  border-color: #166534;
+}
+
+:deep(.bovenbalk .actie-ongedaan) {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid #64748b;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+:deep(.bovenbalk .actie-ongedaan span) {
+  display: none;
+}
+
+:deep(.bovenbalk .actie-ongedaan:hover:not(:disabled)) {
+  background: #e2e8f0;
+  border-color: #475569;
+}
+
+:deep(.bovenbalk .actie-download) {
+  background: #0e7490;
+  border: 1px solid #0e7490;
+  border-radius: 999px;
+  color: white;
+  font-weight: 700;
+}
+
+:deep(.bovenbalk .actie-download:hover:not(:disabled)) {
+  background: #155e75;
+  border-color: #155e75;
+}
+
+/* Rustige mobiele actiebalk met één primaire actie. */
+@media (max-width: 760px) {
+  :deep(.bovenbalk) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    min-height: 0;
+    background: #182328;
+  }
+
+  :deep(.bovenbalk .merk) {
+    display: none;
+  }
+
+  :deep(.bovenbalk .ontwerpnaam) {
+    order: 0;
+    width: auto;
+    padding: 12px 16px;
+    border: 0;
+  }
+
+  :deep(.bovenbalk .hoofdacties) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    background: #f8fafb;
+    border-bottom: 1px solid #dfe5e8;
+  }
+
+  :deep(.bovenbalk .hoofdacties button) {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    height: auto;
+    padding: 8px 6px;
+    border: 1px solid #cbd5dc;
+    border-radius: 8px;
+    background: transparent;
+    color: #334650;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    box-shadow: none;
+  }
+
+  :deep(.bovenbalk .actie-ongedaan) {
+    order: 3;
+  }
+
+  :deep(.bovenbalk .actie-ongedaan span) {
+    display: inline;
+  }
+
+  :deep(.bovenbalk .hoofdacties svg) {
+    width: 18px;
+    height: 18px;
+  }
+
+  :deep(.bovenbalk .actie-nieuw) {
+    order: 4;
+  }
+
+  :deep(.bovenbalk .actie-nieuw span) {
+    display: inline;
+  }
+
+  :deep(.bovenbalk .actie-opslaan) {
+    order: 1;
+  }
+
+  :deep(.bovenbalk .hoofdacties button:hover:not(:disabled)) {
+    background: #e9eef1;
+    border-color: #9baeb9;
+  }
+
+  :deep(.bovenbalk .hoofdacties .actie-download) {
+    order: 2;
+    background: #0e7490;
+    border-color: #0e7490;
+    color: white;
+  }
+
+  :deep(.bovenbalk .hoofdacties .actie-download:hover:not(:disabled)) {
+    background: #155e75;
+    border-color: #155e75;
+  }
+
+  :deep(.bovenbalk .actie-download svg),
+  :deep(.bovenbalk .actie-download .formaat) {
+    display: none;
+  }
+
+  :deep(.bovenbalk .hoofdacties button:disabled) {
+    opacity: 1;
+    background: #edf1f3;
+    border-color: #e0e6ea;
+    color: #84939c;
+  }
 }
