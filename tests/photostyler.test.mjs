@@ -136,7 +136,22 @@ class Sprite extends DisplayObject {
   baseWidth = 400;
   baseHeight = 250;
 }
-cl
+
+class Sprite extends DisplayObject {
+  constructor(texture) {
+    super();
+    this.texture = texture;
+  }
+  baseWidth = 400;
+  baseHeight = 250;
+}
+class Text extends DisplayObject {
+  constructor({text}) {
+    super();
+    this.text = text;
+  }
+}
+
 async function setup({ opslag = {}, leeg = false, workspaceKey } = {}) {
   const previewBestanden = new Map();
   let urlNummer = 0;
