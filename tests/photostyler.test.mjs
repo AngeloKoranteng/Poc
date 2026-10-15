@@ -804,6 +804,18 @@ test("partial bold and italic formatting survives apply, canvas editing and undo
   } finally { h.close(); }
 });
 
+test("text color is applied to the canvas text and can be undone", async () => {
+  const h = await setup();
+  try {
+    h.editor.textForm.value.color = "#527bdb";
+    h.editor.applyText();
+    assert.equal(h.text.style.fill, "#527bdb");
+
+    h.editor.undo();
+    assert.equal(h.text.style.fill, "#172e2b");
+  } finally { h.close(); }
+});
+
 test("canvas exposure uses original pixels, preserves alpha and supports reset and undo", async () => {
   const h = await setup();
   try {

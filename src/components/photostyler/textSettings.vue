@@ -14,6 +14,17 @@ const {
 
 const textEditor = ref<InstanceType<typeof  TextEditor> | null>(null);
 
+const textPalette = [
+  "#172e2b",
+  "#ffffff",
+  "#ff0000",
+  "#f3c55e",
+  "#479775",
+  "#527bdb",
+  "#a76fcb",
+  "#ed94a5",
+];
+
 async function applyChanges() {
   stopCanvasText();
   applyText();
@@ -25,6 +36,11 @@ function beforeFormatting() {
   const canvasWasActive = canvasTextActive.value;
   stopCanvasText();
   if (canvasWasActive) textEditor.value?.resetSelection();
+}
+
+function chooseTextColor(color: string) {
+  textForm.value.color = color;
+  void applyChanges();
 }
 </script>
 <template>
@@ -57,80 +73,63 @@ function beforeFormatting() {
       </summary>
 
 
-<div class="tekst-opties-inhoud">
-  <label class="tekstveld">
-    <span>Lettertype</span>
-    <select v-model="textForm.fontFamily">
-      <option value="Arial">Arial</option>
-      <option value="Verdana">Verdana</option>
-      <option value="Georgia">Georgia</option>
-      <option value="Times New Roman">Times New Roman</option>
-      <option value="Courier New">Courier New</option>
-    </select>
-  </label>
-        <label class="tekstveld">
-          <span>Tekstkleur</span>
-          <input
-              v-model="textForm.color"
-              type="color"
-          />
-        </label>
+        <div class="tekst-opties-inhoud">
+          <label class="tekstveld">
+            <span>Lettertype</span>
+            <select v-model="textForm.fontFamily">
+              <option value="Arial">Arial</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+            </select>
+          </label>
+<label class="tekstveld">
+  <span>Tekstkleur</span>
 
-        <label class="tekstveld">
-          <span>Lettergrootte in pixels</span>
-          <input
+  <div  class="kleurkeuze tekstkleurkeuze">
+    <input
+    id="tekst-kleur"
+    v-model="textForm.color"
+    type="color"
+    aria-label="Tekstkleur kiezen"
+    @change="applyChanges"
+    />
+
+    <output>{{ textForm.color.toUpperCase() }}</output>
+  </div>
+</label>
+          <div
+            class="kleurpalet tekstkleurpalet"
+            role="group"
+            aria-label="Snelle tekstkleuren"
+          >
+            <button
+              v-for="color in textPalette"
+              :key="color"
+              type="button"
+              :style="{ background: color }"
+              :aria-label="`Tekstkleur ${color}`"
+              :aria-pressed="textForm.color.toLowerCase() === color"
+              :class="{ gekozen: textForm.color.toLowerCase() === color }"
+              @click="chooseTextColor(color)"
+              />
+
+          </div>
+
+          <label class="tekstveld">
+            <span>Lettergrootte in pixels</span>
+            <input
               v-model.number="textForm.size"
               type="number"
               min="8"
               max="160"
-          />
-        </label>
-      </div>
-    </details>
-
-    <!-- Less frequently used, precise positioning -->
-    <details class="tekst-opties">
-      <summary>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-              d="M12 3v18M3 12h18
-               M9 6l3-3 3 3M9 18l3 3 3-3
-               M6 9l-3 3 3 3M18 9l3 3-3 3"
-          />
-        </svg>
-        <span>Positie</span>
-        <svg class="uitklappijl" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </summary>
-
-      <div class="tekst-opties-inhoud">
-        <div class="knoppenrij">
-          <label class="tekstveld">
-            <span>Positie X</span>
-            <input
-                v-model.number="textForm.x"
-                type="number"
-                step="any"
-            />
-          </label>
-
-          <label class="tekstveld">
-            <span>Positie Y</span>
-            <input
-                v-model.number="textForm.y"
-                type="number"
-                step="any"
             />
           </label>
         </div>
-
-        <p class="kleine-tekst">
-          Je kunt de tekst ook rechtstreeks op het canvas verslepen.
-          Met de grepen kun je schalen en draaien.
-        </p>
-      </div>
     </details>
+
+
 
     <div class="knoppenrij tekst-acties">
       <button
