@@ -84,6 +84,12 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
   const errorMessage = ref("");
   const canvasReady = ref(false);
   const activePanel = ref("uploads");
+  // Editor zoom only changes how the editor is viewed; it does not change
+  // the selected image or any saved design coordinates.
+  const editorZoom = ref(1);
+  const minimumEditorZoom = 0.5;
+  const maximumEditorZoom = 2;
+  const editorZoomStep = 0.1;
   // Locks the settings while an object is being dragged or transformed.
   const inspectorsLocked = ref(false);
 
@@ -348,6 +354,26 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       selectedType = panel;
     }
     renderCanvas();
+  }
+
+  function setEditorZoom(value: number) {
+    if (!Number.isFinite(value)) return;
+    editorZoom.value = Math.max(
+        minimumEditorZoom,
+        Math.min(maximumEditorZoom, Math.round(value * 100) / 100),
+    );
+  }
+
+  function zoomIn() {
+    setEditorZoom(editorZoom.value + editorZoomStep);
+  }
+
+  function zoomOut() {
+    setEditorZoom(editorZoom.value - editorZoomStep);
+  }
+
+  function resetEditorZoom() {
+    setEditorZoom(1);
   }
 
   // Switches the paint on or off
@@ -1981,6 +2007,11 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     downloadPhoto,
     panels,
     activePanel,
+    editorZoom,
+    setEditorZoom,
+    zoomIn,
+    zoomOut,
+    resetEditorZoom,
     selectPanel,
     canvasReady,
     fileInput,
@@ -2016,5 +2047,6 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     applyText,
     removeText,
     inspectorsLocked,
+
   };
 }

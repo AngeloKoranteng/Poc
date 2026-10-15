@@ -1,4 +1,10 @@
 /* Editor theme only: the host website owns its page shell. */
+.editor-zoom-viewport {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  background: #102e33;
+}
 .editor {
   display: flex;
   flex-direction: column;
@@ -20,6 +26,11 @@
   color: var(--editor-text);
   background: var(--editor-shell);
   font: 13px/1.5 "Segoe UI", Arial, sans-serif;
+  transform-origin: top left;
+}
+.editor:fullscreen {
+  width: 100vw;
+  min-height: 100vh;
 }
 .editor, :deep(*), :deep(*::before), :deep(*::after) { box-sizing: border-box; }
 :deep(button), :deep(input), :deep(select), :deep(textarea) { font: inherit; }
@@ -422,8 +433,53 @@ width: 18px;
 }
 :deep(.zoom-controls) {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px; padding: 0 16px 16px;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 32px;
+  background: #e5efef;
+  color: #173b40;
+  border-top: 1px solid #d2e1e2;
+}
+:deep(.zoom-controls button) {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+:deep(.zoom-controls button:hover:not(:disabled)) {
+  background: #d1e5e6;
+}
+:deep(.zoom-controls button:disabled) {
+  opacity: .45;
+  cursor: default;
+}
+:deep(.zoom-controls .zoom-percentage) {
+  min-width: 48px;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+:deep(.zoom-controls .zoom-fullscreen) {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 4px;
+}
+:deep(.zoom-controls .zoom-fullscreen svg) {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 :deep(.foutmelding) {
   margin: 16px 24px 0; padding: 12px;

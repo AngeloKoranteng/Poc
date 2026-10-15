@@ -129,15 +129,6 @@ class Graphics extends DisplayObject {
   }
 }
 class Sprite extends DisplayObject {
-  constructor (texture){
-    super();
-    this.texture = texture;
-  }
-  baseWidth = 400;
-  baseHeight = 250;
-}
-
-class Sprite extends DisplayObject {
   constructor(texture) {
     super();
     this.texture = texture;
@@ -1018,7 +1009,6 @@ test("failed save keeps the previous draft and reports failure", async () => {
   } finally { h.close(); }
 });
 
-
 test("saving an empty design replaces the prior draft", async () => {
   const opslag = {};
   const h = await setup({ opslag });
@@ -1146,6 +1136,25 @@ test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
   for (const listener of ["pointermove", "pointerup", "pointercancel", "blur"]) {
     assert.equal(h.window.handlers.get(listener)?.size ?? 0, 0);
   }
+});
+
+test("editor zoom changes the whole editor view independently from the selected image", async () => {
+  const h = await setup();
+  try {
+    const imageScale = h.photo.scale.x;
+    assert.equal(h.editor.editorZoom.value, 1);
+    h.editor.zoomIn();
+    assert.equal(h.editor.editorZoom.value, 1.1);
+    assert.equal(h.photo.scale.x, imageScale);
+    h.editor.zoomOut();
+    assert.equal(h.editor.editorZoom.value, 1);
+    h.editor.setEditorZoom(2.5);
+    assert.equal(h.editor.editorZoom.value, 2);
+    h.editor.setEditorZoom(0.1);
+    assert.equal(h.editor.editorZoom.value, 0.5);
+    h.editor.resetEditorZoom();
+    assert.equal(h.editor.editorZoom.value, 1);
+  } finally { h.close(); }
 });
 
 test("undo shortcut finishes a slider change but respects text input and other shortcuts", async () => {
