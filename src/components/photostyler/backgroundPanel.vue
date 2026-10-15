@@ -77,34 +77,35 @@ function applyHexColor(event: Event) {
 
       <label class="tekstveld">
         <span>Hex color</span>
-        <input
-          type="text"
-          :value="chosenColor.toUpperCase()"
-          pattern="#[0-9a-fA-F]{6}"
-          maxlength="7"
-          required
-          spellcheck="false"
-          @change="applyHexColor"
-          @keydown.enter.prevent="applyHexColor"
-        />
+       <input
+       type="text"
+       :value="chosenColor.toUpperCase()"
+       pattern="#[0-9a-fA-F]{6}"
+       maxlength="7"
+       required
+       spellcheck="false"
+       @change="applyHexColor"
+       @keydown.enter.prevent="applyHexColor"
+
+       />
       </label>
 
       <div
-          class="kleurpalet"
-          role="group"
-          aria-label="Background color presets"
-      >
-        <button
-            v-for="color in brushPalette"
-            :key="color"
-            type="button"
-            :style="{ background: color }"
-            :aria-label="'Background color ' + color"
-            :aria-pressed="chosenColor === color"
-            :class="{ gekozen: chosenColor === color }"
-            :title="color"
-            @click="selectBackgroundColor(color)"
-        />
+        class="kleurpalet"
+        role="group"
+        aria-label="Background color presets"
+        >
+       <button
+        v-for="color in brushPalette"
+        :key="color"
+        type="button"
+        :style="{background: color}"
+        :aria-label="'Background color' + color"
+        :class="{gekozen: chosenColor === color}"
+        :title="color"
+        @click="selectBackgroundColor(color)"
+
+/>
       </div>
 
     </fieldset>

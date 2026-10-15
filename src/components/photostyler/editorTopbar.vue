@@ -15,26 +15,13 @@ const { canvasReady,
 </script>
 
 <template>
-  <!-- Title and recurring promotions. -->
+  <!-- Editor actions stay connected to the existing shared handlers. -->
   <header class="bovenbalk">
-    <div class="merk">
-      <span>Dappre <br>toolkit
-      </span>
-    </div>
     <div class="ontwerpnaam">
-      <span class="bovenlabel">CLUBSTUDIO</span>
-      <h1>{{ fileName || "Nieuw clubontwerp" }}</h1>
+      <h2 class="project-name">{{ fileName || "Nieuw clubontwerp" }}</h2>
     </div>
     <div class="hoofdacties">
-     <button
-       class="undo actie-opslaan"
-       type="button"
-       :disabled="!canvasReady || draftBusy || history.length === 0"
-       title="Bewaar een bewerkbaar concept in deze browser"
-       @click="saveDraft"
-       >
-       {{ draftBusy ? "Even wachten..." : "Concept opslaan" }}
-     </button>
+
 
       <button
         class="undo actie-nieuw"
@@ -44,8 +31,9 @@ const { canvasReady,
         title="Wis het huidige ontwerp en begin met leeg canvas"
         @click="newDesign"
         >
-        <svg viewbox="0 0 24 24" aria-hidden="true">
-          <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5"/>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+          <path d="M14 2v6h6M12 11v6M9 14h6" />
         </svg>
         <span>Nieuw ontwerp</span>
       </button>
@@ -59,14 +47,22 @@ const { canvasReady,
         aria-keyshortcuts="Control+Z Meta+Z"
         :disabled="history.length === 0"
       >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path d="m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12h-3" />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 5 4 10l5 5" />
+          <path d="M4 10h10a6 6 0 0 1 0 12" transform="translate(0 -2)" />
         </svg>
         <span>Ongedaan maken</span>
       </button>
+
+     <button
+       class="undo actie-opslaan"
+       type="button"
+       :disabled="!canvasReady || draftBusy"
+       title="Bewaar een bewerkbaar concept in deze browser"
+       @click="saveDraft"
+       >
+       {{ draftBusy ? "Even wachten..." : "Concept opslaan" }}
+     </button>
 
       <button
         class="download actie-download"

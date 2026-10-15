@@ -82,21 +82,21 @@ onBeforeUnmount(() => observer?.disconnect());
 <template>
   <div ref="holder" class="canvas-teksthouder">
     <textarea
-      v-if="canvasTextActive"
-      ref="input"
-      v-model="canvasTextInput"
-      class="canvas-tekstinvoer"
-      :style="style"
-      rows="1"
-      maxlength="500"
-      aria-label="Tekst op het canvas"
-      placeholder="Typ je tekst…"
-      @input="updateCanvasContent"
-      @keydown.stop="handleKeydown"
-      @pointerdown.stop
-      @dblclick.stop
-      @wheel.stop
-      @blur="stopCanvasText()"
+   v-if="canvasTextActive"
+   ref="input"
+   v-model="canvasTextInput"
+   class="canvas-tekstinvoer"
+   :style="style"
+   rows="1"
+   maxlength="500"
+   aria-label="Tekst op het canvas"
+   placeholder="Typ je tekst"
+   @input="updateCanvasContent"
+   @keydown.stop="handleKeydown"
+   @pointerdown.stop
+   @dblclick.stop
+   @wheel.stop
+   @blur="stopCanvasText()"
     />
   </div>
 </template>
@@ -107,7 +107,7 @@ onBeforeUnmount(() => observer?.disconnect());
   inset: 0;
   pointer-events: none;
 }
-.canvas-tekstinvoer {
+.canvas-tekstinvoer{
   position: absolute;
   box-sizing: content-box;
   width: 720px;

@@ -56,18 +56,18 @@ function beforeFormatting() {
         </svg>
       </summary>
 
-      <div class="tekst-opties-inhoud">
-        <label class="tekstveld">
-          <span>Lettertype</span>
-          <select v-model="textForm.fontFamily">
-            <option value="Arial">Arial</option>
-            <option value="Verdana">Verdana</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Courier New">Courier New</option>
-          </select>
-        </label>
 
+<div class="tekst-opties-inhoud">
+  <label class="tekstveld">
+    <span>Lettertype</span>
+    <select v-model="textForm.fontFamily">
+      <option value="Arial">Arial</option>
+      <option value="Verdana">Verdana</option>
+      <option value="Georgia">Georgia</option>
+      <option value="Times New Roman">Times New Roman</option>
+      <option value="Courier New">Courier New</option>
+    </select>
+  </label>
         <label class="tekstveld">
           <span>Tekstkleur</span>
           <input
@@ -148,12 +148,12 @@ function beforeFormatting() {
   </div>
 </template>
 
-<style>
+<style scoped>
 
 .tekst-opties{
   margin-top: 12px;
-  border: 1px solid #dfe5e2;
-  border-radius: 9px;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
   overflow: hidden;
 }
 
@@ -163,7 +163,7 @@ function beforeFormatting() {
   gap: 10px;
   min-height: 44px;
   padding: 10px 12px;
-  color: #172e2b;
+  color: var(--editor-on-dark);
   font-weight: 600;
   cursor: pointer;
   list-style: none;
@@ -174,23 +174,27 @@ function beforeFormatting() {
 }
 
 .tekst-opties > summary:hover {
-  background: #edf7f8;
+  background: var(--editor-surface-hover);
 }
 
 .tekst-opties[open] > summary {
-  background: #00ABC1;
+  background: var(--editor-surface-hover);
 }
 
 .tekst-opties > summary:focus-visible {
-outline: 3px solid #172e2b;
+outline: 3px solid var(--editor-on-dark);
 outline-offset: -3px;
 }
+
+.tekst-opties summary svg { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 
 .uitklappijl {
 margin-left: auto;
 }
 
-.tekst-opties[open] .uitklappijl {
+.tekst-opties[open] .tekst-opties summary svg { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+.uitklappijl {
 transform: rotate(180deg);
 }
 

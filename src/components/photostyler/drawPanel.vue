@@ -30,12 +30,12 @@ const {
     <fieldset :disabled="!fileName">
       <legend class="sr-only">Kwastinstellingen</legend>
       <button
-        class="kwast-knop"
-        :class="{ actief: drawingMode }"
-        type="button"
-        :aria-pressed="drawingMode"
-        :aria-label="drawingMode ? 'Kwast uitzetten' : 'Kwast inschakelen'"
-        @click="toggleBrush"
+       class="kwast-knop"
+       :class="{actief: drawingMode}"
+       type="button"
+       :aria-pressed="drawingMode"
+       :aria-label="drawingMode ? 'Kwast uitzetten' : 'Kwast inschakelen'"
+       @click="toggleBrush"
       >
         <img
           src="/kwast.svg"

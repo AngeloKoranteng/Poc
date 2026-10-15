@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { toolPanels } from "../../composables/photostyler/config.ts";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
-const { panels, activePanel, selectPanel } = usePhotoStylerContext();
+const { activePanel, selectPanel } = usePhotoStylerContext();
 </script>
 
 <template>
@@ -11,7 +12,7 @@ const { panels, activePanel, selectPanel } = usePhotoStylerContext();
     aria-label="Editorgereedschappen"
   >
     <button
-        v-for="panel in panels.filter( item => !['tekenen', 'tekst'].includes(item.id))"
+        v-for="panel in toolPanels"
       :key="panel.id"
       type="button"
       :class="{ actief: activePanel === panel.id }"
@@ -26,10 +27,5 @@ const { panels, activePanel, selectPanel } = usePhotoStylerContext();
       </svg>
       {{ panel.name }}
     </button>
-    <span
-      class="railvoet"
-      aria-hidden="true"
-      >MAAK HET<br />VAN JOU.</span
-    >
   </nav>
 </template>

@@ -61,13 +61,14 @@ function remove() {
 <style scoped>
 .uploadacties {
   margin: 10px 0 20px;
-  padding: 12px;
-  border: 1px solid #dce5df;
-  border-radius: 10px;
-  background: #f5f8f6;
-  color: #26463c;
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--editor-border-dark);
+  border-radius: 0;
+  background: transparent;
+  color: var(--editor-on-dark);
 }
-.uploadacties.geselecteerd { border-color: #63aab0; background: #eef8f8; }
+.uploadacties.geselecteerd { border-color: var(--editor-accent); background: transparent; }
 .uploadstatus { margin: 0 0 10px; font-size: 12px; font-weight: 600; line-height: 1.5; }
 .actieknoppen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .actieknoppen button {
@@ -78,17 +79,17 @@ function remove() {
   min-height: 44px;
   min-width: 0;
   padding: 8px;
-  border: 1px solid #dce5df;
-  border-radius: 7px;
-  background: #fff;
-  color: #26463c;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
+  background: var(--editor-surface-raised);
+  color: var(--editor-on-dark);
   font-size: 12px;
   cursor: pointer;
 }
-.actieknoppen button:hover { background: #e5f1ee; border-color: #7da99b; }
-.actieknoppen button:focus-visible { outline: 2px solid #00899b; outline-offset: 2px; }
-.actieknoppen .actie-verwijderen { color: #a33424; }
-.actieknoppen .actie-verwijderen:hover { background: #fff0ee; border-color: #dfa69f; }
+.actieknoppen button:hover { background: var(--editor-surface-hover); border-color: var(--editor-accent); }
+.actieknoppen button:focus-visible { outline: 2px solid var(--editor-accent); outline-offset: 2px; }
+.actieknoppen .actie-verwijderen { color: var(--editor-danger); }
+.actieknoppen .actie-verwijderen:hover { background: var(--editor-surface-hover); border-color: var(--editor-danger); }
 svg { flex: 0 0 16px; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .uploaduitleg { margin: 10px 0 0; font-size: 12px; line-height: 1.5; }
 </style>

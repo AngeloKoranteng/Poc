@@ -3,13 +3,20 @@ import PhotoStyler from '../components/photostyler.vue';
 ---
 
 <html lang="nl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width" />
-  <title>Foto Styler</title>
-</head>
-
-<body>
-<PhotoStyler client:load />
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Photo Styler</title>
+  </head>
+  <body>
+    <main class="standalone-editor">
+      <PhotoStyler client:load />
+    </main>
+  </body>
 </html>
+
+<style is:global>
+  /* Standalone development page only; the embedded editor owns no body styles. */
+  body { margin: 0; background: #f2f4f3; }
+  .standalone-editor { --editor-min-height: 100dvh; }
+</style>

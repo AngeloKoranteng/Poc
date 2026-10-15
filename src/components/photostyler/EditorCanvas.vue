@@ -19,7 +19,6 @@ const {
   fileName,
   canvasReady,
   backgroundFileName,
-  backgroundPreview,
   backgroundConfigured,
   selectPanel,
   fileInput,
@@ -36,8 +35,8 @@ function bindPaintCanvas(element: unknown) {
 
 <template>
 <!-- Canvas with the image and a separate layer of paint. -->
-  <main
-    class="werkruimte"
+  <section
+    class="werkruimte canvas-workspace"
     aria-label="Ontwerpcanvas"
   >
 
@@ -52,7 +51,7 @@ function bindPaintCanvas(element: unknown) {
       <div class="papier">
         <div class="papierkop">
           <span>01 <strong>Jouw clubontwerp</strong></span
-          ><span>PNG</span>
+          ><span>800 × 500 px · PNG</span>
         </div>
         <div
           class="canvas-host"
@@ -61,21 +60,20 @@ function bindPaintCanvas(element: unknown) {
         >
           <div :ref="bindCanvasHost"></div>
           <canvas
-            :ref="bindPaintCanvas"
-            class="verflaag"
-            width="800"
-            height="500"
-            aria-label="Verflaag: teken met de kwast op de afbeelding"
-            @pointerdown="startDrawing"
-            @pointermove="continueDrawing"
-            @pointerup="stopDrawing"
-            @pointercancel="stopDrawing"
-            @lostpointercapture="stopDrawing"
+        :ref="bindPaintCanvas"
+        class="verflaag"
+        width="800"
+        height="500"
+        aria-label="Verflaag: teken met de kwast op de afbeelding"
+        @pointerdown="startDrawing"
+        @pointermove="continueDrawing"
+        @pointerup="stopDrawing"
+        @pointercancel="stopDrawing"
+        @lostpointercapture="stopDrawing"
           />
           <div
               v-if="!backgroundConfigured && !fileName && !backgroundFileName && !canvasTextActive && !layers.some(layer => layer.id === 'tekst' && layer.present)"
             class="leeg-canvas"
-            :style="{ background: backgroundPreview }"
           >
             <div
               class="leeg-icoon"
@@ -125,8 +123,6 @@ function bindPaintCanvas(element: unknown) {
 
       </div>
     </div>
-    <footer class="werkruimtevoet">
-      <span>Gemaakt voor jouw club</span><span>Download je ontwerp om het te bewaren</span>
-    </footer>
-  </main>
+
+  </section>
 </template>

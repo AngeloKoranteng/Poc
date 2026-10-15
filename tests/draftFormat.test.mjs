@@ -115,10 +115,20 @@ test("draft transactions encode writes, decode legacy reads and delete the saved
     await draftTransaction("write", draft);
     assert.equal(records.get("huidig").toestand.tekst.inhoud, "Updated text");
     assert.equal(records.get("huidig").versie, 1);
+    const legacyRecord = records.get("huidig");
+    await draftTransaction("write", draft, { workspaceKey: "club-a" });
+    assert.equal(records.get("huidig"), legacyRecord);
+    assert.equal(records.get("workspace:club-a").toestand.tekst.inhoud, "Updated text");
+    assert.equal(
+      (await draftTransaction("read", undefined, { workspaceKey: "club-a" })).condition.text.content,
+      "Updated text",
+    );
+    await draftTransaction("delete", undefined, { workspaceKey: "club-a" });
+    assert.equal(await draftTransaction("read", undefined, { workspaceKey: "club-a" }), undefined);
     assert.equal((await draftTransaction("read")).condition.text.content, "Updated text");
     await draftTransaction("delete");
     assert.equal(await draftTransaction("read"), undefined);
-    assert.equal(closed, 5);
+    assert.equal(closed, 9);
   } finally {
     if (previousIndexedDB === undefined) delete globalThis.indexedDB;
     else globalThis.indexedDB = previousIndexedDB;

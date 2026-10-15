@@ -272,36 +272,35 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div
-      ref="field"
-      class="rijke-tekstinvoer"
-      contenteditable="true"
-      role="textbox"
-      aria-label="Jouw tekst"
-      aria-multiline="true"
-      :style="{ fontFamily: modelValue.fontFamily ?? 'Arial' }"
-      data-placeholder="Bijvoorbeeld: Samen voor onze club!"
-      @beforeinput="beforeInput"
-      @input="syncContent"
-      @paste="handlePaste"
-      @drop.prevent
-      @keydown.stop
-      @mouseup="saveSelection"
-      @keyup="saveSelection"
+ref="field"
+class="rijke-tekstinvoer"
+contenteditable="true"
+role="textbox"
+aria-label="Jouw tekst"
+aria-multiline="true"
+:style="{ fontFamily: modelValue.fontFamily ?? 'Arial' }"
+@beforeinput="beforeInput"
+@input="syncContent"
+@paste="handlePaste"
+@drop.prevent
+@keydown.stop
+@mouseup="saveSelection"
+@keyup="saveSelection"
     ></div>
   </div>
 </template>
 
 <style scoped>
-.rijke-tekstinvoer {
+.rijke-tekstinvoer{
   min-height: 100px;
   max-height: 300px;
   overflow-y: auto;
   width: 100%;
   padding: 10px;
-  border: 1px solid #dfe5e2;
-  border-radius: 8px;
-  background: #fff;
-  color: #172e2b;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
+  background: var(--editor-surface-raised);
+  color: var(--editor-on-dark);
   font-size: 16px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -309,12 +308,12 @@ onBeforeUnmount(() => {
   cursor: text;
 }
 .rijke-tekstinvoer:focus-visible {
-  outline: 3px solid #00abc1;
+  outline: 3px solid var(--editor-accent);
   outline-offset: 3px;
 }
 .rijke-tekstinvoer:empty::before {
   content: attr(data-placeholder);
-  color: #718178;
+  color: var(--editor-muted-on-dark);
   pointer-events: none;
 }
 </style>

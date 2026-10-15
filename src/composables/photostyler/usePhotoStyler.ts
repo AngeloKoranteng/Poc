@@ -9,21 +9,42 @@ import { useText } from "./useText.ts";
 import { draftTransaction } from "./conceptStorage.ts";
 import { useLighting } from "./useLighting.ts";
 
-export function usePhotoStyler() {
+export interface PhotoStylerOptions {
+  // Opaque caller-provided scope. Standalone mode keeps the legacy default.
+  workspaceKey?: string;
+}
+
+interface EditorResetSnapshot {
+  state: EditorState;
+  brushstrokes: EditorState["brushstrokes"];
+  history: EditorState[];
+  activePanel: string;
+  drawingMode: boolean;
+  brushColor: string;
+  brushSize: number;
+}
+
+export function usePhotoStyler(options: PhotoStylerOptions = {}) {
+  const draftStorageOptions = options.workspaceKey === undefined
+    ? undefined
+    : { workspaceKey: options.workspaceKey };
+
   // References to the canvas, the paint layer, and the upload field.
   const centerGuides = ref({ vertical: false, horizontal: false });
   const canvasHost = ref<HTMLElement | null>(null);
   const paintCanvas = ref<HTMLCanvasElement | null>(null);
   const fileInput = ref<HTMLInputElement | null>(null);
+  const editorRoot = ref<HTMLElement | null>(null);
   const draftBusy = ref(false);
-  const draftMessage = ref("");
-  const draftStatus = ref("info");
+  const notSavedMessage = "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan.";
+  const draftMessage = ref(notSavedMessage);
+  const draftStatus = ref("gewijzigd");
 
   function markNotSaved(){
     // While saving or loading a draft
     if (draftBusy.value) return;
     draftStatus.value = "gewijzigd";
-    draftMessage.value = "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan."
+    draftMessage.value = notSavedMessage;
   }
 
   let photoSource: ImageSource | null = null;
@@ -584,9 +605,142 @@ export function usePhotoStyler() {
     }
   }
 
+  function captureEditorSnapshot(): EditorResetSnapshot {
+    return {
+      state: getCurrentState(),
+      brushstrokes: readPaintStrokes(),
+      history: [...history.value],
+      activePanel: activePanel.value,
+      drawingMode: drawingMode.value,
+      brushColor: brushColor.value,
+      brushSize: brushSize.value,
+    };
+  }
 
-async function newDesign(){
-    if (!canvasReady.value || draftBusy.value) return;
+  function restoreEditorSnapshot(snapshot: EditorResetSnapshot) {
+    restoreState({
+      ...snapshot.state,
+      brushstrokes: snapshot.brushstrokes,
+    });
+    history.value = snapshot.history;
+    activePanel.value = snapshot.activePanel;
+    drawingMode.value = snapshot.drawingMode;
+    brushColor.value = snapshot.brushColor;
+    brushSize.value = snapshot.brushSize;
+    inspectorsLocked.value = false;
+    centerGuides.value = { vertical: false, horizontal: false };
+    renderCanvas();
+  }
+
+  // Clear the live editor before touching persisted data. If this throws, the
+  // saved draft remains available for the next attempt.
+  function resetEditorState() {
+    if (!canvasReady.value) throw new Error("The editor is not ready.");
+
+    stopResize();
+    stopDrag();
+    stopDrawing();
+    stopColorChange();
+    stopCanvasText(false);
+    uploadId++;
+    backgroundUploadId++;
+
+    const previousRestoringState = restoringState;
+    restoringState = true;
+
+    try {
+      if (photoSprite) {
+        const object = photoSprite;
+        lightingProcessor.remove("afbeelding");
+        app.stage.removeChild(object);
+        photoSprite = null;
+        photoSource = null;
+        photoFile = null;
+        fileName.value = "";
+        object.destroy({ texture: true, textureSource: true });
+      }
+      if (backgroundSprite) {
+        const object = backgroundSprite;
+        lightingProcessor.remove("achtergrond");
+        app.stage.removeChild(object);
+        backgroundSprite = null;
+        backgroundSource = null;
+        backgroundFile = null;
+        backgroundFileName.value = "";
+        object.destroy({ texture: true, textureSource: true });
+      }
+
+      photoSprite = null;
+      photoSource = null;
+      photoFile = null;
+      fileName.value = "";
+      backgroundSprite = null;
+      backgroundSource = null;
+      backgroundFile = null;
+      backgroundFileName.value = "";
+
+      restoreText(null);
+      loadPaintStrokes([]);
+
+      for (const layer of layers.value) {
+        layer.present = false;
+        layer.visible = true;
+        layer.locked = false;
+      }
+
+      selectedType = "afbeelding";
+      selectedLayer.value = "afbeelding";
+      activePanel.value = "uploads";
+      drawingMode.value = false;
+      inspectorsLocked.value = false;
+      centerGuides.value = { vertical: false, horizontal: false };
+      lightingValues.value = { afbeelding: 0, achtergrond: 0 };
+      backgroundDarkness.value = 0;
+      backgroundConfigured.value = false;
+      red.value = 230;
+      green.value = 230;
+      blue.value = 230;
+      errorMessage.value = "";
+      history.value = [];
+      app.renderer.background.color = getBackgroundColor();
+      renderCanvas();
+    } finally {
+      restoringState = previousRestoringState;
+    }
+  }
+
+  async function resetEditor() {
+    if (!canvasReady.value || draftBusy.value) return false;
+
+    const snapshot = captureEditorSnapshot();
+    draftBusy.value = true;
+    draftStatus.value = "bezig";
+    draftMessage.value = "Je lege canvas wordt voorbereid...";
+
+    try {
+      resetEditorState();
+      await draftTransaction("delete", undefined, draftStorageOptions);
+      draftStatus.value = "gewijzigd";
+      draftMessage.value = notSavedMessage;
+      return true;
+    } catch (error) {
+      try {
+        restoreEditorSnapshot(snapshot);
+      } catch (restoreError) {
+        console.error("Failed to restore the editor after reset failure:", restoreError);
+      }
+      console.error("Failed to reset the photo editor:", error);
+      draftStatus.value = "fout";
+      draftMessage.value =
+          "Een nieuw ontwerp starten is niet gelukt. Je opgeslagen concept is behouden. Probeer opnieuw.";
+      return false;
+    } finally {
+      draftBusy.value = false;
+    }
+  }
+
+  async function newDesign(){
+    if (!canvasReady.value || draftBusy.value) return false;
 
     const confirmed = window.confirm(
         "Een nieuw ontwerp starten ?\n\n" +
@@ -594,26 +748,10 @@ async function newDesign(){
         "Dit kun je niet ongedaan maken",
     );
 
-    if (!confirmed) return;
+    if (!confirmed) return false;
 
-    draftBusy.value = true;
-    draftStatus.value = "bezig";
-    draftMessage.value = "Je lege canvas wordt voorbereid...";
-
-    try{
-      await draftTransaction("delete");
-
-      // Reloads after concept is deleted
-      window.location.reload();
-    } catch {
-      draftStatus.value = "fout";
-      draftMessage.value =
-          "Een nieuwe ontwerp strten is niet gelukt" +
-          "Je canvas is niet leeggemaakt. Probeer opnieuw";
-
-      draftBusy.value = false;
-    }
-}
+    return resetEditor();
+  }
 
 
 
@@ -638,7 +776,7 @@ async function newDesign(){
         background: backgroundFile,
         brushstrokes: readPaintStrokes(),
       };
-      await draftTransaction("write", draft);
+      await draftTransaction("write", draft, draftStorageOptions);
 
       const timestamp = new Intl.DateTimeFormat("nl-NL", {
         hour: "2-digit",
@@ -657,14 +795,12 @@ async function newDesign(){
 
   async function loadDraft() {
     draftBusy.value = true;
-    draftStatus.value = "bezig";
-    draftMessage.value = "Je opgeslagen ontwerp wordt geladen. Even geduld…";
     try {
-      const draft = await draftTransaction("read");
+      const draft = await draftTransaction("read", undefined, draftStorageOptions);
       if (unmounted) return;
       if (!draft) {
-        draftStatus.value = "info";
-        draftMessage.value = "";
+        draftStatus.value = "gewijzigd";
+        draftMessage.value = notSavedMessage;
         return;
       }
       if (draft.version !== 1 || !draft.condition || !Array.isArray(draft.brushstrokes)) {
@@ -691,8 +827,9 @@ async function newDesign(){
       restoreState(state);
       history.value = [];
       console.info("[Draft · restore] Complete: the draft is editable on the canvas again.");
-      draftStatus.value = "opgeslagen";
-      draftMessage.value = "Opgeslagen concept hersteld. Nieuwe wijzigingen bewaren met Concept opslaan.";
+      // Alleen bewust opslaan geeft de bevestiging 'opgeslagen'.
+      draftStatus.value = "gewijzigd";
+      draftMessage.value = notSavedMessage;
     } catch {
       draftStatus.value = "fout";
       draftMessage.value = "Het concept kon niet worden geladen. Uw opgeslagen concept is niet overschreven.";
@@ -1076,6 +1213,9 @@ async function newDesign(){
     }
 
     canvasHost.value?.appendChild(app.canvas);
+    // Keep the canvas focusable so editor shortcuts remain available after a
+    // canvas interaction without accepting shortcuts from host controls.
+    app.canvas.tabIndex = 0;
 
     photoFrame = new Graphics();
     photoFrame.eventMode = "passive";
@@ -1169,11 +1309,29 @@ async function newDesign(){
     }
   }
 
-// Let text fields handle their own undo; sliders use the editor history.
+  function eventBelongsToEditor(target: EventTarget | null) {
+    const root = editorRoot.value;
+    if (!root || !target) return false;
+
+    if (target === window || target === document) {
+      const activeElement = document.activeElement;
+      return Boolean(activeElement && root.contains(activeElement));
+    }
+
+    try {
+      return root.contains(target as Node);
+    } catch {
+      return false;
+    }
+  }
+
+  // Let text fields handle their own undo; sliders use the editor history.
   function historyTouch(event: KeyboardEvent) {
     if (!canvasReady.value || draftBusy.value || event.defaultPrevented ||
         event.isComposing || event.altKey || event.shiftKey ||
         !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+
+    if (!eventBelongsToEditor(event.target)) return;
 
     const target = event.target as HTMLElement | null;
     const inputElement = target?.closest?.("input");
@@ -1522,7 +1680,40 @@ async function newDesign(){
     stopDrag();
     stopResize();
     stopCanvasText();
-    if (!canvasReady.value || (!backgroundConfigured.value && !photoSprite && !backgroundSprite && !getTextObject())) return;
+
+    if (
+        !canvasReady.value ||
+        (!backgroundConfigured.value &&
+            !photoSprite &&
+            !backgroundSprite &&
+            !getTextObject())
+    ) return;
+
+    const parameters = new URLSearchParams(window.location.search);
+
+    const cleanName = (value: string) => value
+        .normalize("NFC")
+        .trim()
+        .replace(/\.png$/i, "")
+        .replace(/[^\p{L}\p{N} _-]/gu, "")
+        .trim()
+        .slice(0, 128)
+        .trim();
+
+    const defaultName =
+        cleanName(parameters.get("naam") ?? "") ||
+        cleanName(parameters.get("uuid") ?? "") ||
+        "mijn-bewerkte-foto-1350x852";
+
+    const chosenName = window.prompt(
+        "Welke naam wil je het bestand geven?",
+        defaultName,
+    );
+
+    // Bij Annuleren wordt niets gedownload.
+    if (chosenName === null) return;
+
+    const downloadName = cleanName(chosenName) || defaultName;
 
     stopDrawing();
     const frameWasVisible = photoFrame.visible;
@@ -1531,33 +1722,103 @@ async function newDesign(){
       photoFrame.visible = false;
 
       const dimensions = { width: 1350, height: 852 };
+      // Render above the final download size before downsampling. This keeps
+      // transformed logos and text sharper than a single low-resolution pass.
+      const exportResolution = Math.max(
+          dimensions.width / app.screen.width,
+          dimensions.height / app.screen.height,
+          2,
+      );
       const source = app.renderer.extract.canvas({
         target: app.stage,
         frame: app.screen.clone(),
-        resolution: dimensions.width / app.screen.width,
+        resolution: exportResolution,
+        antialias: true,
         clearColor: getBackgroundColor(),
       });
+
       const canvas = document.createElement("canvas");
       canvas.width = dimensions.width;
       canvas.height = dimensions.height;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("No 2D context available for export.");
-      context.drawImage(source as HTMLCanvasElement, 0, 0, canvas.width, canvas.height);
-      if (paintCanvas.value) context.drawImage(paintCanvas.value, 0, 0, canvas.width, canvas.height);
-      const link = document.createElement("a");
 
-      // The sender supplies the company or logo name; the recipient does not need to enter anything.
-      const parameters = new URLSearchParams(window.location.search);
-      const name = (parameters.get("naam") ?? "")
-        .normalize("NFC")
-        .replace(/\.png$/i, "")
-        .replace(/[^\p{L}\p{N} _-]/gu, "")
-        .trim()
-        .slice(0, 128)
-        .trim();
-      const uuid = (parameters.get("uuid") ?? "").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128);
-      const downloadName = name || uuid;
-      link.download = `${downloadName || "mijn-bewerkte-foto-1350x852"}.png`;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("No 2D context available for export.");
+      }
+
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+
+      context.drawImage(
+          source as HTMLCanvasElement,
+          0, 0, canvas.width, canvas.height,
+      );
+
+      const strokes = readPaintStrokes();
+      const paintSource = document.createElement("canvas");
+      paintSource.width = Math.ceil(app.screen.width * exportResolution);
+      paintSource.height = Math.ceil(app.screen.height * exportResolution);
+      const paintContext = paintSource.getContext("2d");
+
+      // Rebuild strokes at export resolution instead of enlarging the
+      // 800 × 500 editing canvas. This keeps brush edges as sharp as Pixi's
+      // high-resolution logo, background, and text render.
+      if (
+          paintContext &&
+          strokes.length > 0 &&
+          typeof paintContext.moveTo === "function"
+      ) {
+        const scaleX = paintSource.width / app.screen.width;
+        const scaleY = paintSource.height / app.screen.height;
+        const brushScale = (scaleX + scaleY) / 2;
+
+        paintContext.imageSmoothingEnabled = true;
+        paintContext.imageSmoothingQuality = "high";
+        paintContext.lineCap = "round";
+        paintContext.lineJoin = "round";
+
+        for (const stroke of strokes) {
+          if (stroke.points.length === 0) continue;
+
+          paintContext.strokeStyle = stroke.color;
+          paintContext.fillStyle = stroke.color;
+          paintContext.lineWidth = stroke.size * brushScale;
+          paintContext.beginPath();
+
+          const first = stroke.points[0];
+          if (stroke.points.length === 1) {
+            paintContext.arc(
+                first.x * scaleX,
+                first.y * scaleY,
+                (stroke.size * brushScale) / 2,
+                0,
+                Math.PI * 2,
+            );
+            paintContext.fill();
+            continue;
+          }
+
+          paintContext.moveTo(first.x * scaleX, first.y * scaleY);
+          for (const point of stroke.points.slice(1)) {
+            paintContext.lineTo(point.x * scaleX, point.y * scaleY);
+          }
+          paintContext.stroke();
+        }
+
+        context.drawImage(
+            paintSource,
+            0, 0, canvas.width, canvas.height,
+        );
+      } else if (paintCanvas.value) {
+        // Fallback for browsers without a usable 2D export context.
+        context.drawImage(
+            paintCanvas.value,
+            0, 0, canvas.width, canvas.height,
+        );
+      }
+
+      const link = document.createElement("a");
+      link.download = `${downloadName}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } finally {
@@ -1687,11 +1948,13 @@ async function newDesign(){
       app.canvas.removeEventListener("lostpointercapture", stopResize);
       app.destroy(true, { children: true, texture: true, textureSource: true });
     }
+    editorRoot.value = null;
 
   });
 
   return {
     draftBusy,
+    editorRoot,
     logoPreviewUrl: logoPreview.url,
     backgroundUploadPreviewUrl: backgroundUploadPreview.url,
     draftMessage,
@@ -1743,6 +2006,7 @@ async function newDesign(){
     centerGuides,
     canvasHost,
     newDesign,
+    resetEditor,
     saveDraft,
     paintCanvas,
     startDrawing,

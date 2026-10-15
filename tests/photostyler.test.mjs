@@ -27,40 +27,42 @@ class EventTarget {
   }
 }
 class DisplayObject extends EventTarget {
-  x = 0;
-  y = 0;
-  rotation = 0;
-  children = [];
-  visible = true;
-  scale = {
-    x: 1,
-    y: 1,
-    set: (x, y = x) => {
-      this.scale.x = x;
-      this.scale.y = y;
-    },
-    copyFrom: (p) => { this.scale.set(p.x, p.y); },
-  };
-  position = {
-    set: (x, y) => {
-      this.x = x;
-      this.y = y;
-    },
-    copyFrom: (p) => {
-      this.x = p.x;
-      this.y = p.y;
-    },
-    get x() {
-      return this.owner.x;
-    },
-    get y() {
-      return this.owner.y;
-    },
-    owner: this,
-  };
-  anchor = { x: 0, y: 0, set(x, y = x) { this.x = x; this.y = y; } };
-  pivot = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y; } };
-  skew = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y; } };
+x = 0;
+y = 0;
+rotation = 0;
+children = [];
+visible = true;
+scale = {
+  x: 1,
+  y: 1,
+  set: (x, y = x) => {
+    this.scale.x = x;
+    this.scale.y = y;
+  },
+  copyFrom: (p) => {
+    this.scale.set(p.x, p.y);
+  },
+};
+position = {
+  set: (x, y) => {
+    this.x = x;
+    this.y = y;
+  },
+  copyFrom:(p) => {
+    this.x = p.x;
+    this.y = p.y;
+  },
+  get x() {
+    return this.owner.x;
+  },
+  get y() {
+    return this.owner.y;
+  },
+  owner: this,
+};
+anchor = { x: 0, y: 0, set(x, y = x) { this.x = x; this.y = y;}};
+pivot = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y;} };
+skew = { x: 0, y: 0, copyFrom(p) { this.x = p.x; this.y = p.y; } };
   get angle() {
     return (this.rotation * 180) / Math.PI;
   }
@@ -127,28 +129,31 @@ class Graphics extends DisplayObject {
   }
 }
 class Sprite extends DisplayObject {
-  constructor(texture) {
+  constructor (texture){
     super();
     this.texture = texture;
   }
   baseWidth = 400;
   baseHeight = 250;
 }
-class Text extends DisplayObject {
-  constructor({ text }) {
-    super();
-    this.text = text;
-  }
-}
-
-async function setup({ opslag = {}, leeg = false } = {}) {
+cl
+async function setup({ opslag = {}, leeg = false, workspaceKey } = {}) {
   const previewBestanden = new Map();
   let urlNummer = 0;
   const mounted = [],
     unmounted = [];
   const window = new EventTarget();
   window.devicePixelRatio = 1;
-  window.location = { search: "" };
+  let reloads = 0;
+  window.location = { search: "", reload() { reloads++; } };
+  window.confirm = () => true;
+  // Accept the existing download dialog default in the browser test double.
+  window.prompt = (_message, defaultValue) => defaultValue;
+  const editorRoot = {
+    contains(target) {
+      return target === editorRoot || target?.insideEditor === true;
+    },
+  };
   let app;
   let downloadCanvas;
   let downloadLink;
@@ -215,7 +220,7 @@ async function setup({ opslag = {}, leeg = false } = {}) {
       },
       revokeObjectURL(url) { previewBestanden.delete(url); },
     },
-    document: { createElement: (tag) => {
+    document: { activeElement: null, createElement: (tag) => {
       if (tag !== "canvas") return { click() { downloadLink = this; } };
       const canvas = { width: 2, height: 1, toDataURL: () => { downloadCanvas = canvas; return "data:image/png;base64,"; } };
       canvas.getContext = () => ({
@@ -229,10 +234,24 @@ async function setup({ opslag = {}, leeg = false } = {}) {
   });
   const sources = {
     [new URL("../src/composables/photostyler/conceptStorage.ts", import.meta.url).href]: {
-      draftTransaction: async (actie, concept) => {
+      draftTransaction: async (actie, concept, options) => {
+        opslag.calls ??= [];
+        opslag.calls.push({ actie, workspaceKey: options?.workspaceKey });
         if (opslag.fout) throw new Error("Opslag niet beschikbaar");
-        if (actie === "read") return opslag.concept ? structuredClone(opslag.concept) : undefined;
-        opslag.concept = structuredClone(concept);
+        const scope = options?.workspaceKey ?? "default";
+        if (actie === "read") {
+          const draft = scope === "default"
+            ? opslag.concept
+            : opslag.drafts?.[scope];
+          return draft ? structuredClone(draft) : undefined;
+        }
+        if (actie === "delete") {
+          if (scope === "default") delete opslag.concept;
+          else if (opslag.drafts) delete opslag.drafts[scope];
+          return;
+        }
+        if (scope === "default") opslag.concept = structuredClone(concept);
+        else (opslag.drafts ??= {})[scope] = structuredClone(concept);
       },
     },
     vue: {
@@ -298,7 +317,10 @@ async function setup({ opslag = {}, leeg = false } = {}) {
   );
   await module.evaluate();
   const scope = effectScope();
-  const editor = scope.run(() => module.namespace.usePhotoStyler());
+  const editor = scope.run(() => module.namespace.usePhotoStyler(
+    workspaceKey === undefined ? {} : { workspaceKey },
+  ));
+  editor.editorRoot.value = editorRoot;
   editor.canvasHost.value = { appendChild() {} };
   editor.paintCanvas.value = {
     width: 800,
@@ -338,7 +360,9 @@ async function setup({ opslag = {}, leeg = false } = {}) {
     photo,
     text,
     frame,
+    editorRoot,
     window,
+    get reloads() { return reloads; },
     pointer,
     close() {
       unmounted.forEach((fn) => fn());
@@ -940,13 +964,28 @@ test("saved draft restores editable images, text, layer flags and colors after r
     assert.equal(second.editor.layers.value.find(laag => laag.id === "afbeelding").locked, true);
     assert.equal(second.editor.layers.value.find(laag => laag.id === "achtergrond").visible, false);
     assert.equal(second.editor.history.value.length, 0);
+    assert.equal(second.editor.draftStatus.value, "gewijzigd");
+    assert.equal(second.editor.draftMessage.value, "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan.");
+    await second.editor.saveDraft();
+    assert.equal(second.editor.draftStatus.value, "opgeslagen");
     second.editor.toggleLayerLock("afbeelding");
+    assert.equal(second.editor.draftStatus.value, "gewijzigd");
     second.editor.selectLayer("afbeelding");
     second.editor.rotatePhoto(15);
     near(photo.angle, 45);
     await second.editor.saveDraft();
     assert.equal(opslag.concept.brushstrokes[0].points[1].x, 50);
   } finally { second.close(); }
+});
+
+test("fresh editor starts unsaved until explicitly saved", async () => {
+  const h = await setup({ leeg: true });
+  try {
+    assert.equal(h.editor.draftStatus.value, "gewijzigd");
+    assert.equal(h.editor.draftMessage.value, "Je laatste wijzigingen zijn nog niet bewaard. Klik op Concept opslaan.");
+    await h.editor.saveDraft();
+    assert.equal(h.editor.draftStatus.value, "opgeslagen");
+  } finally { h.close(); }
 });
 
 test("failed save keeps the previous draft and reports failure", async () => {
@@ -981,16 +1020,106 @@ test("saving an empty design replaces the prior draft", async () => {
   } finally { next.close(); }
 });
 
+test("new design resets in place, deletes the draft after reset and keeps the editor usable", async () => {
+  const opslag = {};
+  const h = await setup({ opslag });
+  try {
+    await h.editor.saveDraft();
+    assert.ok(opslag.concept);
+
+    const result = await h.editor.newDesign();
+    assert.equal(result, true);
+    assert.equal(h.reloads, 0);
+    assert.equal(opslag.concept, undefined);
+    assert.equal(h.editor.canvasReady.value, true);
+    assert.equal(h.app.destroyed, undefined);
+    assert.equal(h.editor.fileName.value, "");
+    assert.equal(h.editor.backgroundFileName.value, "");
+    assert.equal(h.editor.layers.value.some((layer) => layer.present), false);
+    assert.equal(h.editor.backgroundConfigured.value, false);
+    assert.equal(h.editor.history.value.length, 0);
+    assert.equal(h.editor.draftBusy.value, false);
+    assert.equal(h.editor.draftStatus.value, "gewijzigd");
+
+    await h.editor.uploadPhoto({ target: { files: [{ name: "after-reset.png" }], value: "" } });
+    assert.equal(h.editor.fileName.value, "after-reset.png");
+  } finally { h.close(); }
+});
+
+test("new design preserves the saved draft and restores the editor when storage deletion fails", async () => {
+  const opslag = {};
+  const h = await setup({ opslag });
+  try {
+    h.editor.selectLayer("afbeelding");
+    h.editor.rotatePhoto(30);
+    await h.editor.saveDraft();
+    const saved = structuredClone(opslag.concept);
+
+    opslag.fout = true;
+    const result = await h.editor.newDesign();
+
+    assert.equal(result, false);
+    assert.deepEqual(opslag.concept, saved);
+    assert.equal(h.editor.fileName.value, "foto.png");
+    const restoredPhoto = h.app.stage.children.find((child) => child instanceof Sprite);
+    near(restoredPhoto.angle, 30);
+    assert.match(h.editor.draftMessage.value, /opgeslagen concept is behouden/);
+    assert.equal(h.editor.draftBusy.value, false);
+  } finally { h.close(); }
+});
+
+test("new design does not delete the saved draft when the live reset fails", async () => {
+  const opslag = {};
+  const h = await setup({ opslag });
+  try {
+    await h.editor.saveDraft();
+    const saved = structuredClone(opslag.concept);
+    const deleteCallsBefore = opslag.calls.filter((call) => call.actie === "delete").length;
+    h.app.stage.removeChild = () => { throw new Error("Live reset failed"); };
+
+    const result = await h.editor.newDesign();
+
+    assert.equal(result, false);
+    assert.deepEqual(opslag.concept, saved);
+    assert.equal(
+      opslag.calls.filter((call) => call.actie === "delete").length,
+      deleteCallsBefore,
+    );
+    assert.equal(h.editor.fileName.value, "foto.png");
+    assert.match(h.editor.draftMessage.value, /opgeslagen concept is behouden/);
+  } finally { h.close(); }
+});
+
+test("workspace-scoped editors forward opaque draft scopes without changing the standalone draft", async () => {
+  const opslag = {};
+  const scoped = await setup({ opslag, leeg: true, workspaceKey: "club-a" });
+  try {
+    await scoped.editor.saveDraft();
+    assert.ok(opslag.drafts["club-a"]);
+    assert.equal(opslag.concept, undefined);
+    assert.ok(opslag.calls.some((call) => call.actie === "read" && call.workspaceKey === "club-a"));
+    assert.ok(opslag.calls.some((call) => call.actie === "write" && call.workspaceKey === "club-a"));
+  } finally { scoped.close(); }
+
+  const standalone = await setup({ opslag, leeg: true });
+  try {
+    await standalone.editor.saveDraft();
+    assert.ok(opslag.concept);
+    assert.ok(opslag.calls.some((call) => call.actie === "write" && call.workspaceKey === undefined));
+  } finally { standalone.close(); }
+});
+
 test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
   const h = await setup();
   let prevented = 0;
   try {
+    assert.equal(h.app.canvas.tabIndex, 0);
     h.editor.selectLayer("afbeelding");
     h.editor.rotatePhoto(30);
-    h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault() { prevented++; } });
+    h.window.emit("keydown", { key: "z", ctrlKey: true, target: h.editorRoot, preventDefault() { prevented++; } });
     near(h.photo.angle, 0);
     h.editor.rotatePhoto(60);
-    h.window.emit("keydown", { key: "z", metaKey: true, preventDefault() { prevented++; } });
+    h.window.emit("keydown", { key: "z", metaKey: true, target: h.editorRoot, preventDefault() { prevented++; } });
     near(h.photo.angle, 0);
     h.editor.rotatePhoto(90);
     h.editor.undo();
@@ -999,27 +1128,39 @@ test("Ctrl+Z and Cmd+Z share button undo and clean up on unmount", async () => {
     assert.equal(h.editor.opnieuwToe, undefined);
   } finally { h.close(); }
   assert.equal(h.window.handlers.get("keydown").size, 0);
+  for (const listener of ["pointermove", "pointerup", "pointercancel", "blur"]) {
+    assert.equal(h.window.handlers.get(listener)?.size ?? 0, 0);
+  }
 });
 
 test("undo shortcut finishes a slider change but respects text input and other shortcuts", async () => {
   const h = await setup();
   try {
     h.editor.selectBackgroundColor("#ff0000", true);
-    const range = { type: "range", closest(selector) { return selector === "input" ? this : null; } };
+    const range = { insideEditor: true, type: "range", closest(selector) { return selector === "input" ? this : null; } };
     h.window.emit("keydown", { key: "z", ctrlKey: true, target: range, preventDefault() {} });
     assert.equal(h.editor.backgroundPreview.value, "rgb(230, 230, 230)");
     h.editor.selectLayer("afbeelding");
     h.editor.rotatePhoto(30);
-    const text = { type: "text", closest(selector) { return selector === "input" ? this : null; } };
+    const text = { insideEditor: true, type: "text", closest(selector) { return selector === "input" ? this : null; } };
     const rejectUnexpectedCall = () => assert.fail("Text undo and unrelated keys must not be intercepted");
     for (const extra of [
       { target: text }, { target: { isContentEditable: true } },
       { shiftKey: true }, { altKey: true }, { isComposing: true },
       { defaultPrevented: true }, { key: "y" },
     ]) {
-      h.window.emit("keydown", { key: "z", ctrlKey: true, preventDefault: rejectUnexpectedCall, ...extra });
+      h.window.emit("keydown", { key: "z", ctrlKey: true, target: h.editorRoot, preventDefault: rejectUnexpectedCall, ...extra });
       near(h.photo.angle, 30);
     }
+
+    const hostControl = { type: "text", closest() { return this; } };
+    h.window.emit("keydown", {
+      key: "z",
+      ctrlKey: true,
+      target: hostControl,
+      preventDefault: rejectUnexpectedCall,
+    });
+    near(h.photo.angle, 30);
   } finally { h.close(); }
 });
 
@@ -1033,7 +1174,7 @@ test("first upload is removed by the button, Ctrl+Z or Cmd+Z, including file inp
       assert.equal(h.editor.fileName.value, "logo.png");
       if (actie === "button") h.editor.undo();
       else {
-        const input = { type: "file", closest(selector) { return selector === "input" ? this : null; } };
+        const input = { insideEditor: true, type: "file", closest(selector) { return selector === "input" ? this : null; } };
         h.window.emit("keydown", { key: "z", [actie]: true, target: input, preventDefault() {} });
       }
       assert.equal(h.editor.fileName.value, "");

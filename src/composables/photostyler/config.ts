@@ -1,6 +1,6 @@
 // Menu buttons with their name and SVG icon.
 export const panels = [
-  { id: "uploads", name: "Uploads", icon: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" },
+  { id: "uploads", name: "Uploaden", icon: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6" },
   { id: "afbeelding", name: "Afbeelding", icon: "M3 3h18v18H3ZM3 16l5-5 4 4 3-3 6 6M8 7h.01" },
   { id: "tekst", name: "Tekst", icon: "M4 6V3h16v3M12 3v18M8 21h8" },
   {
@@ -14,7 +14,7 @@ export const panels = [
     icon:
       "M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-4 2 2 0 0 1 1-4h3a3 3 0 0 0 3-3c0-4-4-7-9-7ZM7 9h.01M11 6h.01M16 8h.01M6 14h.01",
   },
-];
+] as const;
 
 // Voorgestelde kleuren voor de kwast.
 export const brushPalette = [
@@ -28,3 +28,10 @@ export const brushPalette = [
   "#ed94a5",
 ];
 
+
+// Reuse activePanel; these are the existing IDs, not a second mode state.
+export type EditorTool = "uploads" | "afbeelding" | "achtergrond";
+export const toolPanels = panels.filter(
+  (panel): panel is Extract<(typeof panels)[number], { id: EditorTool }> =>
+    panel.id === "uploads" || panel.id === "afbeelding" || panel.id === "achtergrond",
+);

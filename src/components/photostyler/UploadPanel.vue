@@ -132,10 +132,9 @@ function receiveFile(event: DragEvent, upload: typeof uploadPhoto) {
   width: 100%;
   height: 120px;
   object-fit: contain;
-  border: 1px solid #dce5df;
-  border-radius: 8px;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
   background-color: #fff;
-  background-image: conic-gradient(#e9eeeb 25%, transparent 0 50%, #e9eeeb 0 75%, transparent 0);
-  background-size: 16px 16px;
+
 }
 </style>

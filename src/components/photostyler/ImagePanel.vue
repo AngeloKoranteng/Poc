@@ -248,8 +248,7 @@ function handleLightingInput(event: Event) {
         v-show="isOpen('exposure')"
         :id="`${menuId}-exposure`"
         class="functiemenu"
-        :disabled="!lightingAvailable"
-    >
+        :disabled="!lightingAvailable">
       <legend>Exposure — belichting</legend>
 
       <div class="schuifregelaar">
@@ -318,30 +317,30 @@ function handleLightingInput(event: Event) {
             @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
           />
         </span>
-        <input
-          v-model.number="backgroundDarkness"
-          type="range"
-          aria-label="Achtergrond donkerte"
-          min="0"
-          max="100"
-          step="1"
-          @pointerdown="startColorChange"
-          @keydown="startColorChange"
-          @change="stopColorChange"
-          @pointerup="stopColorChange"
-          @pointercancel="stopColorChange"
-          @keyup="stopColorChange"
-          @blur="stopColorChange"
+      <input
+        v-model.number="backgroundDarkness"
+        type="range"
+        aria-label="Achtergrond donkerte"
+        min="0"
+        max="100"
+        step="1"
+        @pointerdown="startColorChange"
+        @keydown="startColorChange"
+        @change="stopColorChange"
+        @pointerup="stopColorChange"
+        @pointercancel="stopColorChange"
+        @keyup="startColorChange"
+        @blur="stopColorChange"
         />
       </div>
     </fieldset>
 
     <button
-        class="verwijderen"
-        type="button"
-        :disabled="!fileName && !backgroundFileName"
-        @click="deletePhoto"
-    >
+      class="verwijderen"
+      type="button"
+      :disabled="!fileName && !backgroundFileName"
+      @click="deletePhoto"
+      >
       Geselecteerde afbeelding verwijderen
     </button>
   </section>
@@ -357,13 +356,13 @@ function handleLightingInput(event: Event) {
 }
 
 .functiegroep + .functiegroep {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--editor-border-dark);
 }
 
 .functieknoppen .functiegroep-titel {
   margin: 0 0 8px;
   padding: 0 12px;
-  color: #7b828b;
+  color: var(--editor-muted-on-dark);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -385,7 +384,7 @@ function handleLightingInput(event: Event) {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: #343b43;
+  color: var(--editor-on-dark);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -401,32 +400,32 @@ function handleLightingInput(event: Event) {
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  color: #7b828b;
+  color: var(--editor-muted-on-dark);
 }
 
 .functieknoppen .functieknop:hover:not(:disabled) {
-  background: #f3f5f6;
+  background: var(--editor-surface-hover);
   border-left-color: transparent;
 }
 
 .functieknoppen .functieknop[aria-expanded="true"] {
-  background: #edf8fa;
-  border-left-color: #00abc1;
-  color: #172e2b;
+  background: var(--editor-surface-hover);
+  border-left-color: var(--editor-accent);
+  color: var(--editor-on-dark);
 }
 
 .functieknoppen .functieknop[aria-expanded="true"] svg {
-  color: #00899b;
+  color: var(--editor-accent);
 }
 
 .functieknoppen .functieknop:focus-visible {
-  outline: 2px solid #00abc1;
+  outline: 2px solid var(--editor-accent);
   outline-offset: -2px;
 }
 
 .functiemenu {
   margin-top: 18px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--editor-border-dark);
 }
 </style>

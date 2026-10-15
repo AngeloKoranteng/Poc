@@ -5,7 +5,22 @@ const DATABASE = "photostyler";
 // Preserve existing storage names; draftFormat maps the stored field names.
 const STORE_NAME = "concepten";
 const DRAFT_KEY = "huidig";
+const WORKSPACE_KEY_PREFIX = "workspace:";
 let transactionCount = 0;
+
+export interface DraftStorageOptions {
+  // Opaque caller-provided scope. It is deliberately not tied to a URL or a
+  // particular host application identifier.
+  workspaceKey?: string;
+}
+
+function getDraftKey(options?: DraftStorageOptions) {
+  if (options?.workspaceKey === undefined) return DRAFT_KEY;
+  if (options.workspaceKey.length === 0) {
+    throw new Error("Workspace key must not be empty.");
+  }
+  return `${WORKSPACE_KEY_PREFIX}${options.workspaceKey}`;
+}
 
 // Type definition for the log function so that TypeScript knows how to call it
 type LogFunction = (message: string, ...data: unknown[]) => void;
@@ -29,7 +44,12 @@ function logDraft(log: LogFunction, draft: Draft) {
   log("Paint strokes:", draft.brushstrokes);
 }
 
-export async function draftTransaction(action: "read" | "write" | "delete" | string, draft?: Draft) {
+export async function draftTransaction(
+    action: "read" | "write" | "delete" | string,
+    draft?: Draft,
+    options?: DraftStorageOptions,
+) {
+  const draftKey = getDraftKey(options);
   const prefix = `[Draft ${++transactionCount} · ${action}]`;
   const log: LogFunction = (message, ...data) => console.info(prefix, message, ...data);
 
@@ -38,7 +58,7 @@ export async function draftTransaction(action: "read" | "write" | "delete" | str
 
   try {
     log("1. Open IndexedDB. Storage belongs to this website in this browser.", {
-      database: DATABASE, store: STORE_NAME, key: DRAFT_KEY,
+      database: DATABASE, store: STORE_NAME, key: draftKey,
     });
     db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(DATABASE, 1);
@@ -71,13 +91,13 @@ export async function draftTransaction(action: "read" | "write" | "delete" | str
       let request: IDBRequest;
 
       if (isRead) {
-        request = store.get(DRAFT_KEY);
+        request = store.get(draftKey);
       } else if (isDelete) {
-        request = store.delete(DRAFT_KEY);
+        request = store.delete(draftKey);
       } else {
         if (!draft) { reject(new Error("No draft to save.")); return; }
         logDraft(log, draft);
-        request = store.put(encodeDraft(draft), DRAFT_KEY);
+        request = store.put(encodeDraft(draft), draftKey);
       }
 
       // Wait until the entire transaction has been successfully completed.
