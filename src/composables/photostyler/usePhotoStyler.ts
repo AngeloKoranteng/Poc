@@ -769,9 +769,9 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     if (!canvasReady.value || draftBusy.value) return false;
 
     const confirmed = window.confirm(
-        "Een nieuw ontwerp starten ?\n\n" +
-        "Je huidige ontwerp en het opgeslagen concept worden verwijderd." +
-        "Dit kun je niet ongedaan maken",
+        "Wil je een nieuw ontwerp beginnen?\n\n" +
+        "Je huidige logo, achtergrond en tekst worden verwijderd. " +
+        "Deze actie kun je niet ongedaan maken.",
     );
 
     if (!confirmed) return false;
@@ -1035,6 +1035,9 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       mouseY: event.global.y,
       cos: Math.cos(object.rotation),
       sin: Math.sin(object.rotation),
+      textSize: object === getTextObject()
+        ? getCurrentText()?.size
+        : undefined,
     };
 
     inspectorsLocked.value = true;
@@ -1124,6 +1127,8 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
 
     const { direction: direction, width: width, height: height } = action;
 
+    const isText = object === getTextObject();
+
     // Prevents flipping. An already smaller photo does not suddenly jump larger.
     const minimumX = Math.min(1, 20 / width);
     const minimumY = Math.min(1, 20 / height);
@@ -1154,10 +1159,27 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       factorY = Math.max(minimumY, 1 + (localY * direction.y) / height);
     }
 
-    object.scale.set(
-      action.begin.scaleX * factorX,
-      action.begin.scaleY * factorY,
-    );
+    if (isText) {
+      if (direction.x !== 0 && direction.y !== 0) {
+        const factor = Math.max(factorX, factorY);
+        resizeText((action.textSize ?? 36) * factor);
+        factorX = factor;
+        factorY = factor;
+        object.scale.set(1, 1);
+      } else {
+        // A side handle changes the text box width/height only. It does not
+        // change fontSize, so typography remains controlled by text settings.
+        object.scale.set(
+          action.begin.scaleX * factorX,
+          action.begin.scaleY * factorY,
+        );
+      }
+    } else {
+      object.scale.set(
+          action.begin.scaleX * factorX,
+          action.begin.scaleY * factorY,
+      );
+    }
 
     // Moves the center so that the opposite edge or corner remains fixed.
     const shiftX = (direction.x * width * (factorX - 1)) / 2;
@@ -1693,6 +1715,10 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
 
   // Adjusts the image size with the mouse wheel.
   function zoomWithMouse(event: WheelEvent) {
+    // Scrolling must not resize text. Text size is controlled by its
+    // letter-size setting so the exported text keeps the intended size.
+    if (selectedType === "tekst") return;
+
     const object = getActiveObject();
     if (!object || drawingMode.value) return;
 
@@ -1743,9 +1769,29 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
 
     stopDrawing();
     const frameWasVisible = photoFrame.visible;
+    const textObject = getTextObject();
+    const textScale = textObject
+      ? { x: textObject.scale.x, y: textObject.scale.y }
+      : null;
+    const textFontSize =
+      textObject && typeof textObject.style.fontSize === "number"
+        ? textObject.style.fontSize
+        : null;
 
     try {
       photoFrame.visible = false;
+      // Re-rasterize scaled text at its export size instead of enlarging a
+      // small cached text texture. Keep the remaining scale for stretching.
+      if (textObject && textFontSize !== null && textScale) {
+        const rasterScale = Math.max(textScale.x, textScale.y, 1);
+        textObject.style.fontSize = textFontSize * rasterScale;
+        textObject.scale.set(
+          textScale.x / rasterScale,
+          textScale.y / rasterScale,
+        );
+      }
+      // Export the current canvas state, not the editor's visual zoom.
+      app.render();
 
       const dimensions = { width: 1350, height: 852 };
       // Render above the final download size before downsampling. This keeps
@@ -1757,7 +1803,7 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       );
       const source = app.renderer.extract.canvas({
         target: app.stage,
-        frame: app.screen.clone(),
+        frame: new Rectangle(0, 0, app.screen.width, app.screen.height),
         resolution: exportResolution,
         antialias: true,
         clearColor: getBackgroundColor(),
@@ -1848,6 +1894,10 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       link.href = canvas.toDataURL("image/png");
       link.click();
     } finally {
+      if (textObject && textFontSize !== null && textScale) {
+        textObject.style.fontSize = textFontSize;
+        textObject.scale.set(textScale.x, textScale.y);
+      }
       photoFrame.visible = frameWasVisible;
       renderCanvas();
     }
@@ -1893,6 +1943,7 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     stopCanvasText,
     tekstFormulier: textForm,
     applyText,
+    resizeText,
     removeText,
     restoreText,
     getCurrentText,

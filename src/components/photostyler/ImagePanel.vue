@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, useId } from "vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
 const {
@@ -7,425 +6,182 @@ const {
   selectPanel,
   fileName,
   backgroundFileName,
+  selectedLayer,
+  selectLayer,
   changeScale,
-  rotatePhoto,
   deletePhoto,
-  placeLogo,
-  backgroundDarkness,
-  startColorChange,
-  stopColorChange,
-  lightingValue,
-  lightingAvailable,
-  changeLighting,
-  resetLighting,
 } = usePhotoStylerContext();
 
-const menuId = useId();
-const openMenus = ref<string[]>([])
-
-const features = [
-  {
-    id: "positie",
-    name: "Positioneren",
-    icon: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3",
-  },
-  {
-    id: "formaat",
-    name: "Formaat",
-    icon: "M4 10V4h6M14 4h6v6M20 14v6h-6M10 20H4v-6M4 4l6 6M20 20l-6-6",
-  },
-  {
-    id: "draaien",
-    name: "Draaien",
-    icon: "M3 4v6h6M3 10a9 9 0 1 1 2 8",
-  },
-  {
-    id: "exposure",
-    name: "Exposure",
-    icon: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
-  },
-  {
-    id: "donkerte",
-    name: "Verduisteren",
-    icon: "M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z",
-  },
-];
-
-const featureGroups = [
-  { name: "BASIS", items: features.slice(0, 3) },
-  { name: "VERBETEREN", items: features.slice(3) },
-];
-
-function isOpen(id: string) {
-  return openMenus.value.includes(id);
+function chooseLayer(layerId: "afbeelding" | "achtergrond") {
+  selectLayer(layerId);
 }
 
-function toggleMenu(id: string) {
-  stopColorChange();
-
-  if (isOpen(id)) {
-    openMenus.value = openMenus.value.filter((menu) => menu !== id);
-  } else {
-    openMenus.value.push(id);
-  }
-}
-
-function updateNumber(event: Event, setting: "exposure" | "donkerte") {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) return;
-
-  const text = input.value.trim().replace(/%$/, "").trim().replace(",", ".");
-  const number = Number(text);
-
-  if (text !== "" && Number.isFinite(number)) {
-    if (setting === "exposure") {
-      const value = Math.max(-2, Math.min(2, number));
-      changeLighting(Math.round(value * 10) / 10);
-    } else {
-      startColorChange();
-      backgroundDarkness.value = Math.max(
-          0,
-          Math.min(100, Math.round(number)),
-      );
-    }
-    stopColorChange();
-  }
-
-  // Toon de toegepaste waarde, ook na lege of ongeldige invoer.
-  input.value = setting === "exposure"
-      ? lightingValue.value.toFixed(1)
-      : `${backgroundDarkness.value}%`;
-}
-
-function handleLightingInput(event: Event) {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) return;
-
-  changeLighting(input.value);
+function resizeSelected(factor: number) {
+  changeScale(factor);
 }
 </script>
 
 <template>
-  <section v-show="activePanel === 'afbeelding'" class="paneel">
-    <span class="bovenlabel">MAAK HET PASSEND</span>
-    <h2>Afbeelding</h2>
-
+  <section v-show="activePanel === 'afbeelding'" class="paneel eenvoudige-afbeelding">
+    <span class="bovenlabel">EENVOUDIG BEWERKEN</span>
+    <h2>Logo en achtergrond</h2>
     <p>
-      Selecteer je logo of achtergrond. Klik op een icon om de
-      bijbehorende instellingen te openen.
-    </p>
-
-    <p v-if="!fileName && !backgroundFileName" class="tip">
-      Upload eerst een logo of achtergrond.
+      Kies hieronder wat je wilt aanpassen. Sleep daarna het logo of de
+      achtergrond op het canvas naar de juiste plek.
     </p>
 
     <button
-        class="primaire-knop"
-        type="button"
-        @click="selectPanel('uploads')"
+      class="primaire-knop"
+      type="button"
+      @click="selectPanel('uploads')"
     >
-      Logo of achtergrond toevoegen
+      Logo of achtergrond kiezen
     </button>
 
-    <!-- Compact feature list with small icons and visible names. -->
-    <div class="functieknoppen">
-      <div
-        v-for="group in featureGroups"
-        :key="group.name"
-        class="functiegroep"
-        role="group"
-        :aria-label="group.name"
-      >
-        <h3 class="functiegroep-titel">{{ group.name }}</h3>
-
+    <div v-if="fileName || backgroundFileName" class="afbeelding-keuzes">
+      <div v-if="fileName" class="afbeelding-keuze">
+        <div>
+          <strong>Logo</strong>
+          <span>{{ fileName }}</span>
+        </div>
         <button
-          v-for="feature in group.items"
-          :key="feature.id"
-          class="functieknop"
           type="button"
-          :aria-expanded="isOpen(feature.id)"
-          :aria-controls="`${menuId}-${feature.id}`"
-          @click="toggleMenu(feature.id)"
+          :class="{ gekozen: selectedLayer === 'afbeelding' }"
+          :aria-pressed="selectedLayer === 'afbeelding'"
+          @click="chooseLayer('afbeelding')"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path :d="feature.icon" />
-          </svg>
-          <span>{{ feature.name }}</span>
+          {{ selectedLayer === "afbeelding" ? "Gekozen" : "Kiezen" }}
+        </button>
+      </div>
+
+      <div v-if="backgroundFileName" class="afbeelding-keuze">
+        <div>
+          <strong>Achtergrond</strong>
+          <span>{{ backgroundFileName }}</span>
+        </div>
+        <button
+          type="button"
+          :class="{ gekozen: selectedLayer === 'achtergrond' }"
+          :aria-pressed="selectedLayer === 'achtergrond'"
+          @click="chooseLayer('achtergrond')"
+        >
+          {{ selectedLayer === "achtergrond" ? "Gekozen" : "Kiezen" }}
         </button>
       </div>
     </div>
 
-    <!-- Positioning -->
-    <fieldset
-        v-show="isOpen('positie')"
-        :id="`${menuId}-positie`"
-        class="functiemenu"
-        :disabled="!fileName"
-    >
-      <legend>Logo positioneren</legend>
-
-      <div class="knoppenrij">
-        <button type="button" @click="placeLogo('linksboven')">
-          Linksboven
-        </button>
-        <button type="button" @click="placeLogo('rechtsboven')">
-          Rechtsboven
-        </button>
-      </div>
-
-      <div class="knoppenrij">
-        <button type="button" @click="placeLogo('midden')">
-          Midden
-        </button>
-      </div>
-
-      <div class="knoppenrij">
-        <button type="button" @click="placeLogo('linksonder')">
-          Linksonder
-        </button>
-        <button type="button" @click="placeLogo('rechtsonder')">
-          Rechtsonder
-        </button>
-      </div>
-
+    <div v-if="fileName || backgroundFileName" class="basis-acties">
+      <h3>Gekozen afbeelding aanpassen</h3>
       <p class="tip">
-        32 px afstand tot de rand. Een te groot logo wordt passend verkleind.
+        Sleep de gekozen afbeelding op het canvas. Gebruik deze knoppen om
+        haar groter of kleiner te maken.
       </p>
-    </fieldset>
-
-    <!-- Formaat -->
-    <fieldset
-        v-show="isOpen('formaat')"
-        :id="`${menuId}-formaat`"
-        class="functiemenu"
-        :disabled="!fileName"
-    >
-      <legend>Formaat logo</legend>
 
       <div class="knoppenrij">
         <button
-            type="button"
-            @click="selectPanel('afbeelding'); changeScale(0.9)"
+          type="button"
+          :disabled="!selectedLayer"
+          @click="resizeSelected(0.9)"
         >
           − Kleiner
         </button>
         <button
-            type="button"
-            @click="selectPanel('afbeelding'); changeScale(1.1)"
+          type="button"
+          :disabled="!selectedLayer"
+          @click="resizeSelected(1.1)"
         >
           + Groter
         </button>
       </div>
-    </fieldset>
-
-    <!-- Draaien -->
-    <fieldset
-        v-show="isOpen('draaien')"
-        :id="`${menuId}-draaien`"
-        class="functiemenu"
-        :disabled="!fileName"
-    >
-      <legend>Logo draaien</legend>
-
-      <div class="knoppenrij">
-        <button
-            type="button"
-            @click="selectPanel('afbeelding'); rotatePhoto(-15)"
-        >
-          ↶ Links 15°
-        </button>
-        <button
-            type="button"
-            @click="selectPanel('afbeelding'); rotatePhoto(15)"
-        >
-          ↷ Rechts 15°
-        </button>
-      </div>
-    </fieldset>
-
-    <!-- Exposure -->
-    <fieldset
-        v-show="isOpen('exposure')"
-        :id="`${menuId}-exposure`"
-        class="functiemenu"
-        :disabled="!lightingAvailable">
-      <legend>Exposure — belichting</legend>
-
-      <div class="schuifregelaar">
-        <span>
-          Belichting
-          <input
-            class="waarde-vakje"
-            type="text"
-            inputmode="decimal"
-            aria-label="Belichting, van min 2 tot 2"
-            :value="lightingValue.toFixed(1)"
-            @focus="($event.target as HTMLInputElement).select()"
-            @blur="updateNumber($event, 'exposure')"
-            @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
-          />
-        </span>
-        <input
-          type="range"
-          aria-label="Belichting"
-          min="-2"
-          max="2"
-          step="0.1"
-          :value="lightingValue"
-          @input="handleLightingInput"
-          @change="stopColorChange"
-          @pointerup="stopColorChange"
-          @pointercancel="stopColorChange"
-          @keyup="stopColorChange"
-          @blur="stopColorChange"
-        />
-      </div>
-
-      <p class="kleine-tekst">
-        Naar links maakt de afbeelding donkerder, naar rechts lichter.
-      </p>
 
       <button
-          type="button"
-          :disabled="lightingValue === 0"
-          @click="resetLighting"
+        class="verwijderen"
+        type="button"
+        :disabled="!selectedLayer"
+        @click="deletePhoto"
       >
-        Belichting herstellen
+        Gekozen afbeelding verwijderen
       </button>
-    </fieldset>
+    </div>
 
-    <!-- Achtergrond verduisteren -->
-    <fieldset
-        v-show="isOpen('donkerte')"
-        :id="`${menuId}-donkerte`"
-        class="functiemenu"
-        :disabled="!backgroundFileName"
-    >
-      <legend>Achtergrond verduisteren</legend>
-
-      <div class="schuifregelaar">
-        <span>
-          Donkerte
-          <input
-            class="waarde-vakje"
-            type="text"
-            inputmode="numeric"
-            aria-label="Achtergrond donkerte, van 0 tot 100 procent"
-            :value="`${backgroundDarkness}%`"
-            @focus="($event.target as HTMLInputElement).select()"
-            @blur="updateNumber($event, 'donkerte')"
-            @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
-          />
-        </span>
-      <input
-        v-model.number="backgroundDarkness"
-        type="range"
-        aria-label="Achtergrond donkerte"
-        min="0"
-        max="100"
-        step="1"
-        @pointerdown="startColorChange"
-        @keydown="startColorChange"
-        @change="stopColorChange"
-        @pointerup="stopColorChange"
-        @pointercancel="stopColorChange"
-        @keyup="startColorChange"
-        @blur="stopColorChange"
-        />
-      </div>
-    </fieldset>
-
-    <button
-      class="verwijderen"
-      type="button"
-      :disabled="!fileName && !backgroundFileName"
-      @click="deletePhoto"
-      >
-      Geselecteerde afbeelding verwijderen
-    </button>
+    <p v-else class="tip">
+      Kies eerst een logo of achtergrond. Daarna kun je deze op het canvas
+      verplaatsen en groter of kleiner maken.
+    </p>
   </section>
 </template>
 
 <style scoped>
-.functieknoppen {
-  margin-top: 24px;
+.eenvoudige-afbeelding > p {
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-.functiegroep {
-  padding: 14px 0;
+.afbeelding-keuzes {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
 }
 
-.functiegroep + .functiegroep {
-  border-top: 1px solid var(--editor-border-dark);
-}
-
-.functieknoppen .functiegroep-titel {
-  margin: 0 0 8px;
-  padding: 0 12px;
-  color: var(--editor-muted-on-dark);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-
-.functieknoppen .functieknop {
+.afbeelding-keuze {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
-  gap: 14px;
-  width: 100%;
-  height: auto;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
+}
+
+.afbeelding-keuze > div {
+  min-width: 0;
+}
+
+.afbeelding-keuze strong,
+.afbeelding-keuze span {
+  display: block;
+}
+
+.afbeelding-keuze span {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--editor-muted-on-dark);
+  font-size: 12px;
+}
+
+.afbeelding-keuze button {
+  flex: 0 0 auto;
   min-height: 44px;
-  margin: 0;
-  padding: 11px 12px;
-  border: 0;
-  border-left: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: 8px 12px;
+  border: 1px solid var(--editor-border-dark);
+  border-radius: 4px;
+  background: var(--editor-surface-raised);
   color: var(--editor-on-dark);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
   cursor: pointer;
 }
 
-.functieknoppen .functieknop svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--editor-muted-on-dark);
+.afbeelding-keuze button.gekozen {
+  border-color: var(--editor-accent);
+  background: var(--editor-accent);
+  color: var(--editor-on-accent);
 }
 
-.functieknoppen .functieknop:hover:not(:disabled) {
-  background: var(--editor-surface-hover);
-  border-left-color: transparent;
+.basis-acties {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--editor-border-dark);
 }
 
-.functieknoppen .functieknop[aria-expanded="true"] {
-  background: var(--editor-surface-hover);
-  border-left-color: var(--editor-accent);
-  color: var(--editor-on-dark);
+.basis-acties h3 {
+  margin: 0 0 8px;
 }
 
-.functieknoppen .functieknop[aria-expanded="true"] svg {
-  color: var(--editor-accent);
+.basis-acties .tip {
+  margin: 0 0 14px;
 }
 
-.functieknoppen .functieknop:focus-visible {
-  outline: 2px solid var(--editor-accent);
-  outline-offset: -2px;
-}
-
-.functiemenu {
-  margin-top: 18px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--editor-border-dark);
+.verwijderen {
+  width: 100%;
+  margin-top: 14px;
 }
 </style>

@@ -24,7 +24,7 @@ export function useText({
   startDrag,
   afterApply,
 }: TextOptions) {
-  // Default values for one text block on the cnavas
+  // Default values for one text block on the canvas
   const standaardTekst: TextState = {
     content: "",
     color: "#172e2b",
@@ -183,33 +183,41 @@ export function useText({
     renderCanvas();
   }
 
+function resizeText(size: number) {
+    const current = getCurrentText();
+    if(!current) return;
+
+    restoreText({
+      ...current,
+      size: clamp(size, 8, 160, current.size),
+      scaleX: 1,
+      scaleY: 1,
+    });
+}
+
   // Deletes the text and makes it undoable
-  function removeText() {
+function removeText() {
     if (!canEdit()) return;
 
     beforeEdit();
-
     if (toegepasteTekst) {
       saveState();
     }
-
     restoreText(null);
     renderCanvas();
-  }
+}
 
-  // Also read the current transformation for the edit history
-  function getCurrentText() {
-    if (!toegepasteTekst || !tekstObject) return null;
-    return {
+function getCurrentText() {
+    if(!toegepasteTekst || !tekstObject) return null;
+    return{
       ...toegepasteTekst,
-      x: tekstObject.x,
-      y: tekstObject.y,
+      x:tekstObject.x,
+      y:tekstObject.y,
       scaleX: tekstObject.scale.x,
       scaleY: tekstObject.scale.y,
       corner: tekstObject.angle,
     };
-  }
-
+}
   // Keep the input fields the same as the position after dragging
   function syncText() {
     if (!tekstObject) return;
@@ -225,6 +233,7 @@ export function useText({
     stopCanvasText,
     tekstFormulier,
     applyText,
+    resizeText,
     removeText,
     restoreText,
     getCurrentText,

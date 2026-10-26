@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import TextEditor from "./TextEditor.vue";
 import { usePhotoStylerContext } from "../../composables/photostyler/context.ts";
 
@@ -13,6 +13,7 @@ const {
 } = usePhotoStylerContext();
 
 const textEditor = ref<InstanceType<typeof  TextEditor> | null>(null);
+let applyTimer: ReturnType<typeof setTimeout> | undefined;
 
 const textPalette = [
   "#172e2b",
@@ -25,13 +26,32 @@ const textPalette = [
   "#ed94a5",
 ];
 
-async function applyChanges() {
+function applyChanges(){
+  if(applyTimer) clearTimeout(applyTimer);
+
+  applyTimer = setTimeout(() => {
+  if(!textForm.value.content.trim()) return;
+
   stopCanvasText();
   applyText();
-  await nextTick();
-  textEditor.value?.resetSelection();
+
+  void nextTick(()  => {
+    textEditor.value?.resetSelection();
+    });
+  }, 250);
 }
 
+onBeforeUnmount(() => {
+  if (applyTimer) clearTimeout(applyTimer);
+});
+
+watch(
+    textForm,
+    () => {
+      applyChanges();
+    },
+    { deep:true},
+);
 function beforeFormatting() {
   const canvasWasActive = canvasTextActive.value;
   stopCanvasText();
@@ -128,23 +148,10 @@ function chooseTextColor(color: string) {
           </label>
         </div>
     </details>
-
-
-
-    <div class="knoppenrij tekst-acties">
-      <button
-          type="button"
-          :disabled="!textForm.content.trim()"
-          @click="applyChanges"
-      >
-        Tekst toepassen
-      </button>
-
       <button type="button" @click="removeText">
         Tekst wissen
       </button>
-    </div>
-  </div>
+    </div>*
 </template>
 
 <style scoped>
@@ -167,6 +174,7 @@ function chooseTextColor(color: string) {
   cursor: pointer;
   list-style: none;
 }
+
 
 .tekst-opties > summary::-webkit-details-marker{
   display: none;

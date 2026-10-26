@@ -195,6 +195,9 @@ interface TransformAction {
 
   // Editor state before the transformation started.
   historyBegin: EditorState;
+
+  // Original font size when transforming a text object.
+  textSize?: number;
 }
 
 // Describes either a rotation or resize action.
