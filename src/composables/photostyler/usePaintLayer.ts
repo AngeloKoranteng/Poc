@@ -10,15 +10,22 @@ interface PaintOptions {
   stopDrag: () => void;
   stopColorChange: () => void;
   saveState: () => void;
+  onLimit?: (message: string) => void;
 }
+
+export const MAX_PAINT_STROKES = 500;
+export const MAX_POINTS_PER_STROKE = 5_000;
+export const MAX_TOTAL_PAINT_POINTS = 250_000;
+
 export function usePaintLayer({
   verfCanvas, tekenModus, canvasKlaar, kwastKleur, kwastGrootte,
-  hasPhoto, stopDrag, stopColorChange, saveState,
+  hasPhoto, stopDrag, stopColorChange, saveState, onLimit,
 }: PaintOptions) {
   // Paint strokes, the current stroke and the pointer.
   let brushstrokes: PaintStroke[] = [];
   let actieveStreek: PaintStroke | null = null;
   let tekenPointer: number | null = null;
+  let totalPoints = 0;
 
   //converts the pointer position to canvas coordinates
   function getDrawingPoint(event: PointerEvent) {
@@ -62,6 +69,12 @@ export function usePaintLayer({
     )
       return;
 
+    if (brushstrokes.length >= MAX_PAINT_STROKES ||
+        totalPoints >= MAX_TOTAL_PAINT_POINTS) {
+      onLimit?.("De tekenlimiet is bereikt. Verwijder een streek of maak een nieuw ontwerp.");
+      return;
+    }
+
     event.preventDefault();
     stopDrag();
     stopColorChange();
@@ -74,6 +87,7 @@ export function usePaintLayer({
       points: [getDrawingPoint(event)],
     };
     brushstrokes.push(actieveStreek);
+    totalPoints++;
     paintSegment(actieveStreek, actieveStreek.points[0]);
   }
 
@@ -84,7 +98,16 @@ export function usePaintLayer({
     const punt = getDrawingPoint(event);
     const vorigPunt = actieveStreek.points[actieveStreek.points.length - 1];
     if (punt.x === vorigPunt.x && punt.y === vorigPunt.y) return;
+    if (
+      actieveStreek.points.length >= MAX_POINTS_PER_STROKE ||
+      totalPoints >= MAX_TOTAL_PAINT_POINTS
+    ) {
+      onLimit?.("Deze streek is te lang. De streek is gestopt om geheugen te beschermen.");
+      stopDrawing();
+      return;
+    }
     actieveStreek.points.push(punt);
+    totalPoints++;
     paintSegment(actieveStreek, vorigPunt, punt);
   }
 
@@ -103,7 +126,14 @@ export function usePaintLayer({
   // Rebuild the paint layer from the remaining strokes
   function restorePaintLayer(aantal = 0) {
     stopDrawing();
-    brushstrokes.length = aantal;
+    brushstrokes = brushstrokes.slice(0, Math.min(aantal, MAX_PAINT_STROKES));
+    totalPoints = 0;
+    for (const streek of brushstrokes) {
+      streek.points = streek.points
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .slice(0, MAX_POINTS_PER_STROKE);
+      totalPoints += streek.points.length;
+    }
     const canvas = verfCanvas.value;
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     for (const streek of brushstrokes) {
@@ -120,7 +150,23 @@ export function usePaintLayer({
 
   function loadPaintStrokes(streken: PaintStroke[]) {
     stopDrawing();
-    brushstrokes = JSON.parse(JSON.stringify(streken));
+    brushstrokes = JSON.parse(JSON.stringify(streken))
+      .slice(0, MAX_PAINT_STROKES)
+      .map((stroke: PaintStroke) => ({
+        ...stroke,
+        points: stroke.points
+          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+          .slice(0, MAX_POINTS_PER_STROKE),
+      }));
+    totalPoints = brushstrokes.reduce((total, stroke) => total + stroke.points.length, 0);
+    if (totalPoints > MAX_TOTAL_PAINT_POINTS) {
+      let remaining = MAX_TOTAL_PAINT_POINTS;
+      for (const stroke of brushstrokes) {
+        stroke.points = stroke.points.slice(0, remaining);
+        remaining -= stroke.points.length;
+      }
+      totalPoints = MAX_TOTAL_PAINT_POINTS;
+    }
     restorePaintLayer(brushstrokes.length);
   }
 

@@ -10,14 +10,14 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.4",
-    "@astrojs/vue": "^5.1.4",
-    "astro": "^5.13.5",
-    "pixi.js": "^8.20.1",
-    "vue": "^3.5.42"
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/vue": "^7.1.2",
+    "astro": "^7.4.2",
+    "pixi.js": "^8.22.0",
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.13"
   }
 }

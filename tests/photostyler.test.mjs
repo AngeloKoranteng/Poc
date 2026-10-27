@@ -1269,6 +1269,21 @@ test("background upload and removal are undoable without affecting the logo", as
   } finally { h.close(); }
 });
 
+test("redo restores a change after undo and clears after a new edit", async () => {
+  const h = await setup({ leeg: true });
+  try {
+    await h.editor.uploadPhoto({ target: { files: [{ name: "logo.png" }], value: "" } });
+    h.editor.rotatePhoto(30);
+    const photo = h.app.stage.children.find((child) => child instanceof Sprite);
+    h.editor.undo();
+    near(photo.angle, 0);
+    h.editor.redo();
+    near(photo.angle, 30);
+    h.editor.undo();
+    h.editor.changeScale(1.1);
+    assert.equal(h.editor.redoHistory.value.length, 0);
+  } finally { h.close(); }
+});
 
 test("downloads always use XXL dimensions", async () => {
   const h = await setup();
@@ -1317,5 +1332,35 @@ test("PNG filename uses the supplied company name, then uuid, then the default",
       h.editor.downloadPhoto();
       assert.equal(h.downloadLink.download, expected);
     }
+  } finally { h.close(); }
+});
+
+test("rejects empty, oversized and content-mismatched uploads without replacing the image", async () => {
+  const h = await setup({ leeg: true });
+  const invalidBytes = {
+    name: "not-an-image.png",
+    size: 4,
+    type: "image/png",
+    slice() {
+      return { arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer };
+    },
+  };
+  try {
+    await h.editor.uploadPhoto({ target: { files: [{ name: "original.png" }], value: "" } });
+    await h.editor.uploadPhoto({ target: { files: [invalidBytes], value: "" } });
+    assert.equal(h.editor.fileName.value, "original.png");
+    assert.match(h.editor.errorMessage.value, /ondersteunde afbeelding/);
+
+    await h.editor.uploadPhoto({
+      target: { files: [{ name: "empty.png", size: 0, type: "image/png" }], value: "" },
+    });
+    assert.equal(h.editor.fileName.value, "original.png");
+    assert.match(h.editor.errorMessage.value, /leeg/);
+
+    await h.editor.uploadPhoto({
+      target: { files: [{ name: "large.png", size: 20 * 1024 * 1024 + 1, type: "image/png" }], value: "" },
+    });
+    assert.equal(h.editor.fileName.value, "original.png");
+    assert.match(h.editor.errorMessage.value, /maximaal 20 MB/);
   } finally { h.close(); }
 });

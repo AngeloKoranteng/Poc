@@ -95,6 +95,15 @@
 :deep(.bovenbalk button) { background: transparent;
   border-color: var(--editor-border-dark); font-size: 12px;
 }
+:deep(.bovenbalk .actie-primaire) {
+  color: var(--editor-on-dark);
+  border-color: var(--editor-border-dark);
+  font-weight: 600;
+}
+:deep(.bovenbalk .actie-primaire:hover:not(:disabled)) {
+  background: var(--editor-surface-hover);
+  border-color: var(--editor-muted-on-dark);
+}
 :deep(.bovenbalk button:hover:not(:disabled)) {
   background: var(--editor-surface-hover); border-color: var(--editor-muted-on-dark);
 }
@@ -117,6 +126,9 @@
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 600;
+}
+:deep(.actie-opnieuw) {
+  color: var(--editor-on-dark);
 }
 :deep(.actie-nieuw) {
   border-color: #d49a9a;

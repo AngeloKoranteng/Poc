@@ -12,6 +12,15 @@ const { canvasReady,
   history,
   undo,
   downloadPhoto } = usePhotoStylerContext();
+
+function startNewDesign() {
+  if (history.value.length > 0 &&
+      typeof window !== "undefined" &&
+      !window.confirm("Je niet-opgeslagen wijzigingen worden verwijderd. Opnieuw beginnen?")) {
+    return;
+  }
+  void newDesign();
+}
 </script>
 
 <template>
@@ -21,15 +30,13 @@ const { canvasReady,
       <h2 class="project-name">{{ fileName || "Nieuw clubontwerp" }}</h2>
     </div>
     <div class="hoofdacties">
-
-
       <button
         class="actie-nieuw"
         aria-label="Nieuw ontwerp beginnen"
         type="button"
         :disabled="!canvasReady || draftBusy || history.length === 0"
         title="Wis het huidige ontwerp en begin opnieuw met een leeg canvas"
-        @click="newDesign"
+        @click="startNewDesign"
         >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />

@@ -24,6 +24,80 @@ interface EditorResetSnapshot {
   brushSize: number;
 }
 
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+export const MAX_IMAGE_WIDTH = 10_000;
+export const MAX_IMAGE_HEIGHT = 10_000;
+export const MAX_IMAGE_PIXELS = 25_000_000;
+export const MAX_HISTORY_ENTRIES = 100;
+
+const SUPPORTED_IMAGE_TYPES = new Set(["jpeg", "png", "webp", "svg"]);
+
+function uploadError(message: string): Error {
+  return new Error(message);
+}
+
+async function validateUploadFile(file: File): Promise<void> {
+  if (!file) {
+    throw uploadError("Dit bestand is leeg. Kies een geldige afbeelding.");
+  }
+  // Browser File objects always expose a numeric size. The fallback keeps the
+  // editor's lightweight non-browser test doubles usable.
+  if (!Number.isFinite(file.size)) return;
+  if (file.size <= 0) {
+    throw uploadError("Dit bestand is leeg. Kies een geldige afbeelding.");
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw uploadError("Deze afbeelding is te groot. Gebruik een bestand van maximaal 20 MB.");
+  }
+
+  // Test doubles may not implement Blob APIs; real browser File objects do.
+  if (typeof file.slice !== "function") return;
+
+  const prefixBlob = file.slice(0, 64 * 1024);
+  if (typeof prefixBlob?.arrayBuffer !== "function") return;
+  const prefix = new Uint8Array(await prefixBlob.arrayBuffer());
+  const startsWith = (...bytes: number[]) =>
+    bytes.every((byte, index) => prefix[index] === byte);
+  let detectedType: string | null = null;
+
+  if (startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) {
+    detectedType = "png";
+  } else if (startsWith(0xff, 0xd8, 0xff)) {
+    detectedType = "jpeg";
+  } else if (
+    startsWith(0x52, 0x49, 0x46, 0x46) &&
+    prefix[8] === 0x57 &&
+    prefix[9] === 0x45 &&
+    prefix[10] === 0x42 &&
+    prefix[11] === 0x50
+  ) {
+    detectedType = "webp";
+  } else {
+    let text = "";
+    for (const byte of prefix) text += String.fromCharCode(byte);
+    if (/<svg[\s>]/i.test(text)) detectedType = "svg";
+  }
+
+  if (!detectedType || !SUPPORTED_IMAGE_TYPES.has(detectedType)) {
+    throw uploadError("Dit bestand is geen ondersteunde afbeelding (JPG, PNG, WebP of SVG).");
+  }
+}
+
+function validateDecodedImage(image: HTMLImageElement): void {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (!Number.isFinite(width) && !Number.isFinite(height)) return;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw uploadError("De afbeelding heeft geen geldige afmetingen.");
+  }
+  if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT ||
+      width * height > MAX_IMAGE_PIXELS) {
+    throw uploadError(
+      "Deze afbeelding heeft te hoge afmetingen. Gebruik maximaal 10.000 × 10.000 pixels en 25 megapixels.",
+    );
+  }
+}
+
 export function usePhotoStyler(options: PhotoStylerOptions = {}) {
   const draftStorageOptions = options.workspaceKey === undefined
     ? undefined
@@ -100,6 +174,7 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
 
   // Store previous states and the start of the current edit.
   const history = ref<EditorState[]>([]);
+  const redoHistory = ref<EditorState[]>([]);
   let restoringState = false;
   let dragStart: DragAction | null = null;
   let colorChangeStart: EditorState | null = null;
@@ -432,8 +507,11 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
   function saveState(state = getCurrentState()) {
     if (restoringState || !canvasReady.value) return;
 
-
     history.value.push(state);
+    redoHistory.value = [];
+    if (history.value.length > MAX_HISTORY_ENTRIES) {
+      history.value.splice(0, history.value.length - MAX_HISTORY_ENTRIES);
+    }
     markNotSaved();
   }
 
@@ -518,11 +596,25 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
   function undo() {
     if (!canvasReady.value || draftBusy.value) return;
     finishProcessing();
+    const current = getCurrentState();
     const previous = history.value.pop();
     if (!previous) return;
+    redoHistory.value.push(current);
     uploadId++;
     backgroundUploadId++;
     restoreState(previous);
+    markNotSaved();
+  }
+
+  function redo() {
+    if (!canvasReady.value || draftBusy.value) return;
+    finishProcessing();
+    const next = redoHistory.value.pop();
+    if (!next) return;
+    history.value.push(getCurrentState());
+    uploadId++;
+    backgroundUploadId++;
+    restoreState(next);
     markNotSaved();
   }
 
@@ -728,6 +820,7 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       blue.value = 230;
       errorMessage.value = "";
       history.value = [];
+      redoHistory.value = [];
       app.renderer.background.color = getBackgroundColor();
       renderCanvas();
     } finally {
@@ -1287,17 +1380,20 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     if (!file || !canvasReady.value) return;
 
     const currentUpload = ++backgroundUploadId;
-    const objectUrl = URL.createObjectURL(file);
+    let objectUrl = "";
 
     input.value = "";
     errorMessage.value = "";
 
     try {
+      await validateUploadFile(file);
+      objectUrl = URL.createObjectURL(file);
       const image = new Image();
       image.src = objectUrl;
       await image.decode();
 
       if (unmounted || currentUpload !== backgroundUploadId) return;
+      validateDecodedImage(image);
 
       finishProcessing();
       saveState();
@@ -1347,13 +1443,14 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       backgroundFileName.value = file.name;
 
       renderCanvas();
-    } catch {
+    } catch (error) {
       if (!unmounted && currentUpload === backgroundUploadId) {
-        errorMessage.value =
-            "Deze achtergrond kan niet worden geopend. Probeer een andere afbeelding.";
+        errorMessage.value = error instanceof Error
+          ? error.message
+          : "Deze achtergrond kan niet worden geopend. Probeer een andere afbeelding.";
       }
     } finally {
-      URL.revokeObjectURL(objectUrl);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     }
   }
 
@@ -1401,16 +1498,19 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     if (!file || !canvasReady.value) return;
 
     const currentUpload = ++uploadId;
-    const objectUrl = URL.createObjectURL(file);
+    let objectUrl = "";
     errorMessage.value = "";
     input.value = "";
 
     try {
+      await validateUploadFile(file);
+      objectUrl = URL.createObjectURL(file);
       const image = new Image();
       image.src = objectUrl;
       await image.decode();
 
       if (unmounted || currentUpload !== uploadId) return;
+      validateDecodedImage(image);
 
       const texture = Texture.from(image);
 
@@ -1457,13 +1557,14 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       selectPanel("uploads");
       dragStart = null;
       renderCanvas();
-    } catch {
+    } catch (error) {
       if (!unmounted && currentUpload === uploadId) {
-        errorMessage.value =
-          "Deze foto kan niet worden geopend. Probeer een JPG-, PNG-, WebP- of SVG-bestand.";
+        errorMessage.value = error instanceof Error
+          ? error.message
+          : "Deze foto kan niet worden geopend. Probeer een JPG-, PNG-, WebP- of SVG-bestand.";
       }
     } finally {
-      URL.revokeObjectURL(objectUrl);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     }
   }
 
@@ -1932,6 +2033,9 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     stopDrag,
     stopColorChange,
     saveState,
+    onLimit: (message) => {
+      errorMessage.value = message;
+    },
   });
 
   // Connects the text controls to the canvas and history.
@@ -2055,6 +2159,8 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     fileName,
     history,
     undo,
+    redoHistory,
+    redo,
     downloadPhoto,
     panels,
     activePanel,

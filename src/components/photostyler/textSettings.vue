@@ -148,8 +148,8 @@ function chooseTextColor(color: string) {
           </label>
         </div>
     </details>
-      <button type="button" @click="removeText">
-        Tekst wissen
+      <button class="verwijderen" type="button" @click="removeText">
+        Tekst verwijderen
       </button>
     </div>*
 </template>
@@ -209,7 +209,4 @@ transform: rotate(180deg);
 padding: 0 12px 12px;
 }
 
-.tekst-acties {
-margin-top: 20px;
-}
 </style>
