@@ -75,14 +75,8 @@ function bindPaintCanvas(element: unknown) {
               v-if="!backgroundConfigured && !fileName && !backgroundFileName && !canvasTextActive && !layers.some(layer => layer.id === 'tekst' && layer.present)"
             class="leeg-canvas"
           >
-            <div
-              class="leeg-icoon"
-              aria-hidden="true"
-            >
-              ✳
-            </div>
-            <h2>Jouw club. Jouw ontwerp.</h2>
-            <p>Alles begint met een logo of foto.</p>
+
+
             <button
               class="primaire-knop"
               type="button"

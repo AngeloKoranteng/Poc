@@ -151,7 +151,7 @@ function chooseTextColor(color: string) {
       <button class="verwijderen" type="button" @click="removeText">
         Tekst verwijderen
       </button>
-    </div>*
+    </div>
 </template>
 
 <style scoped>
