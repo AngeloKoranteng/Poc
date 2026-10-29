@@ -13,6 +13,12 @@ const { canvasReady,
   undo,
   downloadPhoto } = usePhotoStylerContext();
 
+const hasDownloadContent = () =>
+  backgroundConfigured.value ||
+  fileName.value ||
+  backgroundFileName.value ||
+  layers.value.some((layer) => layer.id === "tekst" && layer.present);
+
 function startNewDesign() {
   if (history.value.length > 0 &&
       typeof window !== "undefined" &&
@@ -73,17 +79,16 @@ function startNewDesign() {
 
       <button
         class="download actie-download"
+        aria-label="Ontwerp downloaden"
         type="button"
+        :disabled="!hasDownloadContent()"
         @click="downloadPhoto"
-        :disabled="!backgroundConfigured && !fileName && !backgroundFileName && !layers.some(layer => layer.id === 'tekst' && layer.present)"
       >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
         </svg>
-        Download <span class="formaat">PNG</span>
+        <span>Download</span>
+        <span class="formaat">PNG</span>
       </button>
     </div>
   </header>

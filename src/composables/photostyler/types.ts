@@ -12,7 +12,7 @@ export interface Point {
 // Stores the original uploaded file together with the loaded HTML image.
 export interface ImageSource {
   file: File;
-  image: HTMLImageElement;
+  image: HTMLImageElement | HTMLCanvasElement;
 }
 
 // Basic text content and formatting options.

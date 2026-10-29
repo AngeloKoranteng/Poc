@@ -125,16 +125,3 @@ function receiveFile(event: DragEvent, upload: typeof uploadPhoto) {
 
   </section>
 </template>
-
-<style scoped>
-.upload-preview {
-  display: block;
-  width: 100%;
-  height: 120px;
-  object-fit: contain;
-  border: 1px solid var(--editor-border-dark);
-  border-radius: 4px;
-  background-color: #fff;
-
-}
-</style>

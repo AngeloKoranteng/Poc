@@ -10,6 +10,7 @@
     "test": "node --experimental-vm-modules --test tests/*.test.mjs",
     "check": "astro check && vue-tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "build": "npm run check && astro build",
+    "build:component": "vite build --config vite.photo-styler.config.ts",
     "preview": "astro preview"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "vue": "^3.5.44"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.3.13"
   }

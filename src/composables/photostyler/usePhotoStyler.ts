@@ -98,6 +98,72 @@ function validateDecodedImage(image: HTMLImageElement): void {
   }
 }
 
+function cropLogoWhitespace(image: HTMLImageElement): HTMLImageElement | HTMLCanvasElement {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context || width <= 0 || height <= 0) return image;
+
+  context.drawImage(image, 0, 0, width, height);
+  const imageData = context.getImageData(0, 0, width, height);
+  const pixels = imageData.data;
+
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = (y * width + x) * 4;
+      const alpha = pixels[index + 3];
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+
+      const isTransparentPixel = alpha <= 8;
+      const isWhitespaceBorderPixel = alpha > 240 && red > 245 && green > 245 && blue > 245;
+
+      if (isTransparentPixel || isWhitespaceBorderPixel) {
+        continue;
+      }
+
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+
+  if (right < left || left === 0 && top === 0 && right === width - 1 && bottom === height - 1) {
+    return image;
+  }
+
+  const cropped = document.createElement("canvas");
+  cropped.width = right - left + 1;
+  cropped.height = bottom - top + 1;
+  const croppedContext = cropped.getContext("2d");
+  if (!croppedContext) return image;
+
+  croppedContext.drawImage(
+    canvas,
+    left,
+    top,
+    cropped.width,
+    cropped.height,
+    0,
+    0,
+    cropped.width,
+    cropped.height,
+  );
+
+  return cropped;
+}
+
 export function usePhotoStyler(options: PhotoStylerOptions = {}) {
   const draftStorageOptions = options.workspaceKey === undefined
     ? undefined
@@ -1512,7 +1578,8 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       if (unmounted || currentUpload !== uploadId) return;
       validateDecodedImage(image);
 
-      const texture = Texture.from(image);
+      const logoImage = cropLogoWhitespace(image);
+      const texture = Texture.from(logoImage);
 
       stopResize();
 
@@ -1528,12 +1595,12 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
         app.stage.removeChild(photoSprite);
         photoSprite.destroy({ texture: true, textureSource: true });
       }
-      photoSource = markRaw({ file: file, image: image });
+      photoSource = markRaw({ file: file, image: logoImage });
       photoFile = file;
       fileName.value = file.name;
 
       photoSprite = new Sprite(texture);
-      lightingProcessor.register("afbeelding", photoSprite, image);
+      lightingProcessor.register("afbeelding", photoSprite, logoImage);
       lightingValues.value["afbeelding"] = 0;
       resetUploadLayer("afbeelding");
       photoSprite.anchor.set(0.5);
@@ -1545,6 +1612,7 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
       );
 
       photoSprite.scale.set(scale);
+      photoSprite.position.set(app.screen.width / 2, app.screen.height / 2);
       photoSprite.eventMode = "static";
       photoSprite.cursor = "grab";
 
@@ -1867,7 +1935,6 @@ export function usePhotoStyler(options: PhotoStylerOptions = {}) {
     if (chosenName === null) return;
 
     const downloadName = cleanName(chosenName) || defaultName;
-
     stopDrawing();
     const frameWasVisible = photoFrame.visible;
     const textObject = getTextObject();

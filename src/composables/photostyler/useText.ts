@@ -38,21 +38,21 @@ export function useText({
   };
 
   // Keep input separate from the text that was actually apllied
-  const tekstFormulier = ref<TextForm>({ ...standaardTekst });
+  const tekstFormulier = ref<TextForm>({...standaardTekst});
   const canvasTekstActief = ref(false);
   const canvasTekstInvoer = ref("");
-  const canvasTekstOpmaak = ref<Omit<TextForm, "size"> & { size: number }>({ ...standaardTekst });
+  const canvasTekstOpmaak = ref<Omit<TextForm, "size"> & { size: number }>({...standaardTekst});
   let formulierVoorCanvas: TextForm | null = null;
 
   function startCanvasText() {
     if (!canEdit() || canvasTekstActief.value) return;
     beforeEdit();
-    formulierVoorCanvas = { ...tekstFormulier.value };
+    formulierVoorCanvas = {...tekstFormulier.value};
     const text = getCurrentText() ?? {
       ...tekstFormulier.value,
       size: clamp(tekstFormulier.value.size, 8, 160, 36),
     };
-    canvasTekstOpmaak.value = { ...text };
+    canvasTekstOpmaak.value = {...text};
     canvasTekstInvoer.value = text.content;
     canvasTekstActief.value = true;
     renderCanvas();
@@ -69,7 +69,7 @@ export function useText({
       if (canvasTekstInvoer.value.trim()) applyText();
       else removeText();
     } else {
-      tekstFormulier.value = { ...(formulierVoorCanvas ?? standaardTekst) };
+      tekstFormulier.value = {...(formulierVoorCanvas ?? standaardTekst)};
     }
     formulierVoorCanvas = null;
     renderCanvas();
@@ -85,14 +85,14 @@ export function useText({
     const getal = Number(value);
 
     return Number.isFinite(getal)
-      ? Math.max(minimum, Math.min(maximum, getal))
-      : standaard;
+        ? Math.max(minimum, Math.min(maximum, getal))
+        : standaard;
   }
 
   // Restores text without taking a new historical step
   function restoreText(condition: TextState | null) {
     toegepasteTekst = condition;
-    tekstFormulier.value = { ...(condition ?? standaardTekst) };
+    tekstFormulier.value = {...(condition ?? standaardTekst)};
 
     if (!condition) {
       if (tekstObject) {
@@ -104,7 +104,7 @@ export function useText({
     }
 
     if (!tekstObject) {
-      tekstObject = new Text({ text: "" });
+      tekstObject = new Text({text: ""});
       tekstObject.anchor.set(0.5);
 
       // Makes the text selectable and draggable
@@ -121,7 +121,7 @@ export function useText({
       app.stage.addChild(getPhotoFrame());
     }
 
-   const canvasTekst = createCanvasText(condition);
+    const canvasTekst = createCanvasText(condition);
     tekstObject.text = canvasTekst.text;
     tekstObject.style = {
       fontFamily: condition.fontFamily ?? "Arial",
@@ -161,13 +161,13 @@ export function useText({
       size: clamp(formulier.size, 8, 160, 36),
       // Dragging may also place the text partially outside the canvas
       x:
-        Number.isFinite(Number(formulier.x)) && formulier.x !== ""
-          ? Number(formulier.x)
-          : 400,
+          Number.isFinite(Number(formulier.x)) && formulier.x !== ""
+              ? Number(formulier.x)
+              : 400,
       y:
-        Number.isFinite(Number(formulier.y)) && formulier.y !== ""
-          ? Number(formulier.y)
-          : 250,
+          Number.isFinite(Number(formulier.y)) && formulier.y !== ""
+              ? Number(formulier.y)
+              : 250,
       scaleX: tekstObject?.scale.x ?? 1,
       scaleY: tekstObject?.scale.y ?? 1,
       corner: tekstObject?.angle ?? 0,
@@ -183,9 +183,9 @@ export function useText({
     renderCanvas();
   }
 
-function resizeText(size: number) {
+  function resizeText(size: number) {
     const current = getCurrentText();
-    if(!current) return;
+    if (!current) return;
 
     restoreText({
       ...current,
@@ -193,10 +193,10 @@ function resizeText(size: number) {
       scaleX: 1,
       scaleY: 1,
     });
-}
+  }
 
   // Deletes the text and makes it undoable
-function removeText() {
+  function removeText() {
     if (!canEdit()) return;
 
     beforeEdit();
@@ -205,19 +205,20 @@ function removeText() {
     }
     restoreText(null);
     renderCanvas();
-}
+  }
 
-function getCurrentText() {
-    if(!toegepasteTekst || !tekstObject) return null;
-    return{
+  function getCurrentText() {
+    if (!toegepasteTekst || !tekstObject) return null;
+    return {
       ...toegepasteTekst,
-      x:tekstObject.x,
-      y:tekstObject.y,
+      x: tekstObject.x,
+      y: tekstObject.y,
       scaleX: tekstObject.scale.x,
       scaleY: tekstObject.scale.y,
       corner: tekstObject.angle,
     };
-}
+  }
+
   // Keep the input fields the same as the position after dragging
   function syncText() {
     if (!tekstObject) return;

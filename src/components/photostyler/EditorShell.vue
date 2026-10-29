@@ -42,4 +42,4 @@ function bindEditorRoot(element: unknown) {
   </div>
 </template>
 
-<style scoped src="../../styles/photostyler.css"></style>
+<style src="../../styles/photostyler.css"></style>
